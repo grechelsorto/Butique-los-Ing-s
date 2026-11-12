@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name = "vieweport" content="width-width, initial-scale=1.0">
+    <title>Inicio - Sistema de Inventario </title>
+    <!-- Cargamos tailwindcss CSS desde su biblioteca de nube  -->
+    <script src="https://cdn.tailwindcss.com/"></script>
+    
+    <style>
+        /* Estructura general de la pagina (oscuro y texto claro) */
+        body { background-color: #0b0f19; color: #e2e8f0;}
+
+        /* Resplando futurista */
+        .neon-card{
+            background-color: #111827; color: #e2e8f0 ;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+        }
+
+        /* Estilo de botones */
+        .neon-btn{
+            background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+            box-shadow: 0 0 15px rgba(14, 165, 233, 0.4);
+            transition: all 0.3s ease;
+        }
+        .neon-btn:hover{
+            box-shadow: 0 0 25px rgba(14, 165, 233, 0.7);
+            transform: translateY(-2px);
+        }
+
+        .neon-title { text-shadow: 0 0 15px rgba(56, 189, 248, 0.5); }
+
+        /* menu lateral fijo */
+        .sidebar { background-color: #0f172a; border-right: 1px solid rgba(56, 189, 248, 0.15); }
+    </style>
+
+</head>
+<!--
+min-h-screen: Ocupa toda la altura
+flex flex-col md:flex-row>: Columna en celular, fija en PC(menu izquierda)
+-->
+<body class="min-h-screen flex flex-col md:flex-row">
+   <!--Menu Lateral izquier(Sidebar)-->
+   <aside class="sidebar w-full md:w-64 p-5 flex flex-col justify-between shrink-0 " >
+        <div>
+            <div class="flex items-center justify-between mb-8">
+                <h1 class="text-base font-bold text-sky-400"> 🚀 Traductores e Interpretes II </h1>
+                <!-- Boton de login para vista de dispositivos mobiles -->
+                <a href="login.html" class="md:hidden font-bold text-xs bg-sky-500/10 text-sky-300 border border-sky-500/30 px-2.5 py-1 rounded-lg">Login</a>
+            </div>
+
+                 <!-- Enlaces de navegacion del Menu-->
+            <nav class="space-y-2 text-ms">
+                    <pan>🏠</pan> <pan>Inicio</pan>
+                <a href="inventario.html" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition">
+                    <span>📦</span> <pan>Inventario</pan>
+                </a>
+            </nav>
+        </div>
+    </aside>
+    <!-- contenido central con mensaje -->
+     <main class="flex-1 p-6 flex items-center justify-center">
+        <div class="max-w-xl w-full neon-card p-8 rounded-2x1 text-center space-y-6">
+            <span class="text-4xl">🚀</span>
+
+            <!--  Titulo del mensaje -->
+            <h2 class="text-2xl md:text-3xl font-extrabold text-sky-400 neon-title leading-snug">
+                Bienvenido a nuestra Web Traductores e Interpretes II
+            </h2>
+
+            <p class="text-slate-400 text-ms loading-relaxed">
+                Estamos dando inicio a esta gran aventura de Desarrollo, aqui conectaremos nuestro responsi con la base de datos (Supabase)
+            </p>
+        </div>
+     </main>
+</body>
+
+</html>

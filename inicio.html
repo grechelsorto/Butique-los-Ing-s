@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inicio - Sistema de Inventario</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0b0f19; color: #e2e8f0; }
+        .neon-card {
+            background-color: #111827; color: #e2e8f0;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+        }
+        .neon-btn {
+            background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+            box-shadow: 0 0 15px rgba(14, 165, 233, 0.4);
+            transition: all 0.3s ease;
+        }
+        .neon-btn:hover {
+            box-shadow: 0 0 25px rgba(14, 165, 233, 0.7);
+            transform: translateY(-2px);
+        }
+        .neon-title { text-shadow: 0 0 15px rgba(56, 189, 248, 0.5); }
+        .sidebar { background-color: #0f172a; border-right: 1px solid rgba(56, 189, 248, 0.15); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col md:flex-row">
+    <aside class="sidebar w-full md:w-64 p-5 flex flex-col justify-between shrink-0">
+        <div>
+            <div class="flex items-center justify-between mb-8">
+                <h1 class="text-base font-bold text-sky-400">🚀 Traductores e Interpretes II</h1>
+                <a href="login.html" class="md:hidden font-bold text-xs bg-sky-500/10 text-sky-300 border border-sky-500/30 px-2.5 py-1 rounded-lg">Login</a>
+            </div>
+            <nav class="space-y-2 text-sm">
+                <a href="index.html" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 font-medium">
+                    <span>🏠</span> <span>Inicio</span>
+                </a>
+                <a href="inventario.html" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition">
+                    <span>📦</span> <span>Inventario</span>
+                </a>
+                <a href="login.html" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition">
+                    <span>🔐</span> <span>Iniciar Sesión</span>
+                </a>
+            </nav>
+        </div>
+    </aside>
+
+    <main class="flex-1 p-6 flex items-center justify-center">
+        <div class="max-w-xl w-full neon-card p-8 rounded-2xl text-center space-y-6">
+            <span class="text-4xl">🚀</span>
+            <h2 class="text-2xl md:text-3xl font-extrabold text-sky-400 neon-title leading-snug">
+                Bienvenido a nuestra Web Traductores e Interpretes II
+            </h2>
+            <p class="text-slate-400 text-sm leading-relaxed">
+                Estamos dando inicio a esta gran aventura de Desarrollo, aquí conectaremos nuestro proyecto con la base de datos (Supabase)
+            </p>
+        </div>
+    </main>
+</body>
+</html>

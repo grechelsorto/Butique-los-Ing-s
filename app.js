@@ -15,11 +15,11 @@ function mostrarNotificacion(mensaje, tipo = "success") {
     const notificacion = document.createElement("div");
     
     const colorFondo = tipo === "success" 
-        ? "bg-slate-900/95 border-cyan-400/50 text-cyan-200 shadow-cyan-500/20" 
-        : "bg-slate-900/95 border-pink-500/50 text-pink-200 shadow-pink-500/20";
+        ? "bg-slate-900/95 border-pink-400/50 text-pink-200 shadow-pink-500/20" 
+        : "bg-slate-900/95 border-rose-500/50 text-rose-200 shadow-rose-500/20";
     
     notificacion.className = `fixed bottom-5 right-5 z-50 px-4 py-3.5 rounded-2xl border shadow-2xl backdrop-blur-md text-sm font-medium transition-all duration-300 flex items-center gap-2.5 ${colorFondo}`;
-    notificacion.innerHTML = `<span class="text-base">${tipo === "success" ? "✅" : "⚠️"}</span> <span>${mensaje}</span>`;
+    notificacion.innerHTML = `<span class="text-base">${tipo === "success" ? "✨" : "⚠️"}</span> <span>${mensaje}</span>`;
     
     document.body.appendChild(notificacion);
 
@@ -36,11 +36,11 @@ function mostrarConfirmacion(mensaje) {
         overlay.className = "fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4";
 
         overlay.innerHTML = `
-            <div class="neon-card p-6 rounded-2xl max-w-sm w-full border border-sky-500/30 shadow-2xl space-y-4 text-center">
-                <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-500/15 border border-pink-500/30 flex items-center justify-center text-2xl">
-                    ⚠️
+            <div class="neon-card p-6 rounded-2xl max-w-sm w-full border border-pink-500/35 shadow-2xl space-y-4 text-center">
+                <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-500/15 border border-pink-500/35 flex items-center justify-center text-2xl">
+                    👗
                 </div>
-                <h3 class="text-lg font-bold text-sky-400 neon-title">Confirmar acción</h3>
+                <h3 class="text-lg font-bold text-pink-400 neon-title">Confirmar acción</h3>
                 <p class="text-sm text-slate-300 leading-relaxed">${mensaje}</p>
                 <div class="flex gap-3 justify-center pt-2">
                     <button id="btnModalCancelar" type="button" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white text-sm font-medium transition">
@@ -88,7 +88,7 @@ function actualizarResumenInventario(productos = []) {
 
     if (elTotal) elTotal.textContent = totalProductos;
     if (elStock) elStock.textContent = totalUnidades;
-    if (elValor) elValor.textContent = `L${valorTotal.toFixed(2)}`;
+    if (elValor) elValor.textContent = `L ${valorTotal.toFixed(2)}`;
 }
 
 function actualizarResumenPersonal(listaPersonal = []) {
@@ -119,7 +119,7 @@ if (loginForm) {
 
         // Credenciales de acceso (puedes cambiarlas si deseas)
         if (usuario === "admin" && password === "1234") {
-            mostrarNotificacion("¡Acceso concedido! Redirigiendo al inventario...", "success");
+            mostrarNotificacion("¡Bienvenido a Boutique Los Ing's! Redirigiendo al catálogo...", "success");
             setTimeout(() => {
                 window.location.href = "inventario.html";
             }, 1000);
@@ -139,9 +139,9 @@ async function cargarInventario() {
     tableBody.innerHTML = `
         <tr>
             <td colspan="4" class="py-10 text-center text-slate-400">
-                <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-800/60 border border-sky-500/20 text-sky-300 text-xs font-medium">
-                    <span class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span>
-                    <span>Cargando productos desde Supabase...</span>
+                <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-800/60 border border-pink-500/25 text-pink-300 text-xs font-medium">
+                    <span class="w-2 h-2 rounded-full bg-pink-400 animate-ping"></span>
+                    <span>Cargando catálogo de prendas desde Supabase...</span>
                 </div>
             </td>
         </tr>
@@ -154,8 +154,8 @@ async function cargarInventario() {
 
     if (error) {
         console.error("Error al cargar:", error);
-        mostrarNotificacion("Error al cargar el inventario: " + error.message, "error");
-        tableBody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-rose-400">⚠️ Error al cargar los datos de Inventario.</td></tr>`;
+        mostrarNotificacion("Error al cargar el catálogo: " + error.message, "error");
+        tableBody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-rose-400">⚠️ Error al cargar el catálogo de prendas.</td></tr>`;
         actualizarResumenInventario([]);
         return;
     }
@@ -167,9 +167,9 @@ async function cargarInventario() {
             <tr>
                 <td colspan="4" class="py-10 text-center text-slate-400">
                     <div class="space-y-1">
-                        <p class="text-2xl">📭</p>
-                        <p class="font-medium text-slate-300">No hay productos registrados aún</p>
-                        <p class="text-xs text-slate-500">Usa el formulario de la izquierda para agregar el primer producto.</p>
+                        <p class="text-2xl">👗</p>
+                        <p class="font-medium text-slate-300">No hay prendas registradas aún</p>
+                        <p class="text-xs text-slate-500">Usa el formulario de la izquierda para agregar la primera prenda al catálogo.</p>
                     </div>
                 </td>
             </tr>
@@ -181,16 +181,21 @@ async function cargarInventario() {
 
     productos.forEach(producto => {
         const fila = document.createElement("tr");
-        fila.className = "border-b border-slate-800/60 hover:bg-sky-500/5 transition-colors duration-150"; 
+        fila.className = "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors duration-150"; 
         
         fila.innerHTML = `
-            <td class="py-3.5 px-4 font-medium text-slate-100">${escaparAtributo(producto.nombre)}</td>
+            <td class="py-3.5 px-4 font-medium text-slate-100">
+                <div class="flex items-center gap-2">
+                    <span class="text-base">👚</span>
+                    <span>${escaparAtributo(producto.nombre)}</span>
+                </div>
+            </td>
             <td class="py-3.5 px-4 font-medium text-slate-300">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/30">
-                    ${producto.cantidad} uds
+                    ${producto.cantidad} en stock
                 </span>
             </td>
-            <td class="py-3.5 px-4 font-semibold text-cyan-400">L${Number(producto.precio).toFixed(2)}</td>
+            <td class="py-3.5 px-4 font-semibold text-pink-400 whitespace-nowrap">L ${Number(producto.precio).toFixed(2)}</td>
             <td class="py-3.5 px-4 text-center">
                 <div class="inline-flex items-center justify-center gap-2">
                     <button type="button"
@@ -199,7 +204,7 @@ async function cargarInventario() {
                             data-cantidad="${producto.cantidad}"
                             data-precio="${producto.precio}"
                             onclick="prepararEdicion(Number(this.dataset.id), this.dataset.nombre, Number(this.dataset.cantidad), Number(this.dataset.precio))" 
-                            class="inline-flex items-center gap-1 text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2.5 py-1.5 rounded-lg hover:bg-amber-500/20 hover:border-amber-400/50 transition">
+                            class="inline-flex items-center gap-1 text-xs font-medium bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/35 px-2.5 py-1.5 rounded-lg hover:bg-fuchsia-500/25 hover:border-fuchsia-400/60 transition">
                         <span>✏️</span>
                         <span>Editar</span>
                     </button>
@@ -222,10 +227,10 @@ function cancelarEdicionProducto() {
     idProductoEditando = null;
 
     const botonSubmit = document.querySelector("#productForm button[type='submit']");
-    if (botonSubmit) botonSubmit.textContent = "Guardar Producto";
+    if (botonSubmit) botonSubmit.textContent = "👗 Guardar Prenda";
 
     const tituloForm = document.getElementById("formProductoTitulo");
-    if (tituloForm) tituloForm.textContent = "Nuevo Producto";
+    if (tituloForm) tituloForm.textContent = "Nueva Prenda";
 
     const btnCancelar = document.getElementById("btnCancelarEdicion");
     if (btnCancelar) btnCancelar.classList.add("hidden");
@@ -256,9 +261,9 @@ if (formulario) {
                 }]);
 
             if (error) {
-                mostrarNotificacion("Error al guardar: " + error.message, "error");
+                mostrarNotificacion("Error al guardar prenda: " + error.message, "error");
             } else {
-                mostrarNotificacion("¡Producto guardado con éxito en la nube!", "success");
+                mostrarNotificacion("¡Prenda agregada al catálogo en la nube!", "success");
                 formulario.reset();
                 cargarInventario(); 
             }
@@ -273,9 +278,9 @@ if (formulario) {
                 .eq('id', idProductoEditando);
 
             if (error) {
-                mostrarNotificacion("Error al actualizar: " + error.message, "error");
+                mostrarNotificacion("Error al actualizar prenda: " + error.message, "error");
             } else {
-                mostrarNotificacion("¡Producto actualizado con éxito!", "success");
+                mostrarNotificacion("¡Prenda actualizada con éxito!", "success");
                 cancelarEdicionProducto();
                 cargarInventario();
             }
@@ -284,7 +289,7 @@ if (formulario) {
 }
 
 async function eliminarProducto(id) {
-    const confirmado = await mostrarConfirmacion("¿Estás seguro de que deseas eliminar este producto?");
+    const confirmado = await mostrarConfirmacion("¿Estás seguro de que deseas retirar esta prenda del catálogo?");
     if (confirmado) {
         const { error } = await supabaseClient
             .from('productos')
@@ -292,12 +297,12 @@ async function eliminarProducto(id) {
             .eq('id', id);
 
         if (error) {
-            mostrarNotificacion("Error al eliminar: " + error.message, "error");
+            mostrarNotificacion("Error al eliminar prenda: " + error.message, "error");
         } else {
             if (idProductoEditando === id) {
                 cancelarEdicionProducto();
             }
-            mostrarNotificacion("¡Producto eliminado correctamente!", "success");
+            mostrarNotificacion("¡Prenda eliminada del catálogo!", "success");
             cargarInventario();
         }
     }
@@ -310,10 +315,10 @@ function prepararEdicion(id, nombre, cantidad, precio) {
     document.getElementById("precio").value = precio;
 
     const botonSubmit = document.querySelector("#productForm button[type='submit']");
-    if (botonSubmit) botonSubmit.textContent = "Actualizar Producto";
+    if (botonSubmit) botonSubmit.textContent = "🧥 Actualizar Prenda";
 
     const tituloForm = document.getElementById("formProductoTitulo");
-    if (tituloForm) tituloForm.textContent = "Editar Producto";
+    if (tituloForm) tituloForm.textContent = "Editar Prenda";
 
     const btnCancelar = document.getElementById("btnCancelarEdicion");
     if (btnCancelar) btnCancelar.classList.remove("hidden");
@@ -331,9 +336,9 @@ async function cargarPersonal() {
     tableBody.innerHTML = `
         <tr>
             <td colspan="6" class="py-10 text-center text-slate-400">
-                <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-800/60 border border-sky-500/20 text-sky-300 text-xs font-medium">
-                    <span class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span>
-                    <span>Cargando personal desde Supabase...</span>
+                <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-800/60 border border-pink-500/25 text-pink-300 text-xs font-medium">
+                    <span class="w-2 h-2 rounded-full bg-pink-400 animate-ping"></span>
+                    <span>Cargando equipo de la boutique desde Supabase...</span>
                 </div>
             </td>
         </tr>
@@ -345,8 +350,8 @@ async function cargarPersonal() {
 
     if (error) {
         console.error("Error al cargar personal:", error);
-        mostrarNotificacion("Error al cargar personal: " + error.message, "error");
-        tableBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-rose-400">⚠️ Error al cargar los datos de Personal.</td></tr>`;
+        mostrarNotificacion("Error al cargar el equipo: " + error.message, "error");
+        tableBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-rose-400">⚠️ Error al cargar los datos del Equipo de la Boutique.</td></tr>`;
         actualizarResumenPersonal([]);
         return;
     }
@@ -358,9 +363,9 @@ async function cargarPersonal() {
             <tr>
                 <td colspan="6" class="py-10 text-center text-slate-400">
                     <div class="space-y-1">
-                        <p class="text-2xl">👥</p>
-                        <p class="font-medium text-slate-300">No hay personal registrado aún</p>
-                        <p class="text-xs text-slate-500">Completa el formulario para dar de alta al primer colaborador.</p>
+                        <p class="text-2xl">👠</p>
+                        <p class="font-medium text-slate-300">No hay integrantes en el equipo aún</p>
+                        <p class="text-xs text-slate-500">Completa el formulario para registrar al primer asesor o colaborador de la boutique.</p>
                     </div>
                 </td>
             </tr>
@@ -371,12 +376,12 @@ async function cargarPersonal() {
     tableBody.innerHTML = "";
     listaPersonal.forEach(persona => {
         const fila = document.createElement("tr");
-        fila.className = "border-b border-slate-800/60 hover:bg-sky-500/5 transition-colors duration-150";
+        fila.className = "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors duration-150";
         fila.innerHTML = `
-            <td class="py-3.5 px-4 text-cyan-300 font-semibold whitespace-nowrap">${escaparAtributo(persona.identidad)}</td>
+            <td class="py-3.5 px-4 text-pink-300 font-semibold whitespace-nowrap">${escaparAtributo(persona.identidad)}</td>
             <td class="py-3.5 px-4 text-slate-100 font-medium">${escaparAtributo(persona.nombres_apellidos)}</td>
             <td class="py-3.5 px-4 text-slate-300">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-500/15 text-violet-200 border border-violet-500/30">
                     ${escaparAtributo(persona.genero)}
                 </span>
             </td>
@@ -397,7 +402,7 @@ async function cargarPersonal() {
 }
 
 async function eliminarPersonal(identidad) {
-    const confirmado = await mostrarConfirmacion("¿Estás seguro de que deseas eliminar este registro de personal?");
+    const confirmado = await mostrarConfirmacion("¿Estás seguro de que deseas retirar a este integrante del Equipo de la Boutique?");
     if (confirmado) {
         const { error } = await supabaseClient
             .from('personal')
@@ -405,9 +410,9 @@ async function eliminarPersonal(identidad) {
             .eq('identidad', identidad);
 
         if (error) {
-            mostrarNotificacion("Error al eliminar personal: " + error.message, "error");
+            mostrarNotificacion("Error al eliminar integrante: " + error.message, "error");
         } else {
-            mostrarNotificacion("¡Personal eliminado correctamente!", "success");
+            mostrarNotificacion("¡Integrante retirado del equipo correctamente!", "success");
             cargarPersonal();
         }
     }
@@ -426,9 +431,9 @@ if (personalForm) {
         }]);
 
         if (error) {
-            mostrarNotificacion("Error al registrar personal: " + error.message, "error");
+            mostrarNotificacion("Error al registrar colaborador: " + error.message, "error");
         } else {
-            mostrarNotificacion("¡Personal registrado en la nube!", "success");
+            mostrarNotificacion("¡Colaborador registrado en el Equipo de la Boutique!", "success");
             personalForm.reset();
             cargarPersonal();
         }

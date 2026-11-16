@@ -443,62 +443,337 @@ if (personalForm) {
 /* ==========================================================================
    PASO 6: MÓDULO DE PROVEEDORES (TABLA: proveedores)
    ========================================================================== */
+
+// Variable para identificar el proveedor que se está editando
+let proveedorEnEdicionId = null;
+
+
+// ==========================================================================
+// 1. CARGAR Y MOSTRAR PROVEEDORES
+// ==========================================================================
+
 async function cargarProveedores() {
     const tableBody = document.getElementById("proveedoresTableBody");
+
     if (!tableBody) return;
 
     const { data: listaProveedores, error } = await supabaseClient
-        .from('proveedores')
-        .select('*')
-        .order('codigo', { ascending: false });
+        .from("proveedores")
+        .select("*")
+        .order("codigo", { ascending: false });
 
     if (error) {
         console.error("Error al cargar proveedores:", error);
+        mostrarNotificacion(
+            "Error al cargar proveedores: " + error.message,
+            "error"
+        );
         return;
     }
 
     if (!listaProveedores || listaProveedores.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-slate-500">No hay proveedores registrados.</td></tr>`;
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="7" class="py-4 text-center text-slate-500">
+                    No hay proveedores registrados.
+                </td>
+            </tr>
+        `;
         return;
     }
 
     tableBody.innerHTML = "";
+
     listaProveedores.forEach(prov => {
         const fila = document.createElement("tr");
-        fila.className = "border-b border-slate-800/60 hover:bg-slate-800/30 transition";
+
+        fila.className =
+            "border-b border-slate-800/60 hover:bg-slate-800/30 transition";
+
         fila.innerHTML = `
-            <td class="py-3 px-2 text-sky-400 font-bold">#${prov.codigo}</td>
-            <td class="py-3 px-2 text-slate-200">${prov.empresa}</td>
-            <td class="py-3 px-2 text-slate-300">${prov.encargado}</td>
-            <td class="py-3 px-2 text-slate-300">${prov.telefono}</td>
-            <td class="py-3 px-2 text-slate-400">${prov.direccion}</td>
-            <td class="py-3 px-2 text-slate-400">${prov.correo}</td>
+            <td class="py-3 px-2 text-sky-400 font-bold">
+                #${prov.codigo}
+            </td>
+
+            <td class="py-3 px-2 text-slate-200"></td>
+            <td class="py-3 px-2 text-slate-300"></td>
+            <td class="py-3 px-2 text-slate-300"></td>
+            <td class="py-3 px-2 text-slate-400"></td>
+            <td class="py-3 px-2 text-slate-400"></td>
+
+            <td class="py-3 px-2">
+                <div class="flex gap-2">
+
+                    <button
+                        type="button"
+                        data-accion="editar"
+                        data-id="${prov.codigo}"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded">
+                        Editar
+                    </button>
+
+                    <button
+                        type="button"
+                        data-accion="eliminar"
+                        data-id="${prov.codigo}"
+                        class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded">
+                        Eliminar
+                    </button>
+
+                </div>
+            </td>
         `;
+
+        const celdas = fila.querySelectorAll("td");
+
+        celdas[1].textContent = prov.empresa || "";
+        celdas[2].textContent = prov.encargado || "";
+        celdas[3].textContent = prov.telefono || "";
+        celdas[4].textContent = prov.direccion || "";
+        celdas[5].textContent = prov.correo || "";
+
         tableBody.appendChild(fila);
     });
 }
 
+
+// ==========================================================================
+// 2. REGISTRAR Y ACTUALIZAR PROVEEDORES
+// ==========================================================================
+
 const proveedoresForm = document.getElementById("proveedoresForm");
+
 if (proveedoresForm) {
+
     proveedoresForm.addEventListener("submit", async (e) => {
         e.preventDefault();
-        const { error } = await supabaseClient.from('proveedores').insert([{
+
+        const proveedor = {
             empresa: document.getElementById("empresa").value.trim(),
             encargado: document.getElementById("encargado").value.trim(),
             telefono: document.getElementById("telefono_prov").value.trim(),
             direccion: document.getElementById("direccion_prov").value.trim(),
             correo: document.getElementById("correo").value.trim()
-        }]);
+        };
 
-        if (error) {
-            mostrarNotificacion("Error al registrar proveedor: " + error.message, "error");
+        let resultado;
+
+        // ACTUALIZAR PROVEEDOR
+        if (proveedorEnEdicionId !== null) {
+
+            resultado = await supabaseClient
+                .from("proveedores")
+                .update(proveedor)
+                .eq("codigo", proveedorEnEdicionId);
+
         } else {
-            mostrarNotificacion("¡Proveedor registrado en la nube!", "success");
-            proveedoresForm.reset();
-            cargarProveedores();
+
+            // REGISTRAR NUEVO PROVEEDOR
+            resultado = await supabaseClient
+                .from("proveedores")
+                .insert([proveedor]);
+
         }
+
+        if (resultado.error) {
+            mostrarNotificacion(
+                "Error al guardar proveedor: " + resultado.error.message,
+                "error"
+            );
+            return;
+        }
+
+        if (proveedorEnEdicionId !== null) {
+            mostrarNotificacion(
+                "Proveedor actualizado correctamente.",
+                "success"
+            );
+        } else {
+            mostrarNotificacion(
+                "Proveedor registrado correctamente.",
+                "success"
+            );
+        }
+
+        cancelarEdicionProveedor();
+        await cargarProveedores();
     });
 }
+
+
+// ==========================================================================
+// 3. BOTONES DE EDITAR Y ELIMINAR
+// ==========================================================================
+
+const proveedoresTableBody = document.getElementById(
+    "proveedoresTableBody"
+);
+
+if (proveedoresTableBody) {
+
+    proveedoresTableBody.addEventListener("click", async (e) => {
+
+        const boton = e.target.closest("button[data-accion]");
+
+        if (!boton) return;
+
+        const codigo = boton.dataset.id;
+        const accion = boton.dataset.accion;
+
+
+        // ------------------------------------------------------------------
+        // EDITAR PROVEEDOR
+        // ------------------------------------------------------------------
+
+        if (accion === "editar") {
+
+            const { data, error } = await supabaseClient
+                .from("proveedores")
+                .select("*")
+                .eq("codigo", codigo)
+                .single();
+
+            if (error) {
+                mostrarNotificacion(
+                    "Error al buscar proveedor: " + error.message,
+                    "error"
+                );
+                return;
+            }
+
+            proveedorEnEdicionId = codigo;
+
+            document.getElementById("empresa").value =
+                data.empresa || "";
+
+            document.getElementById("encargado").value =
+                data.encargado || "";
+
+            document.getElementById("telefono_prov").value =
+                data.telefono || "";
+
+            document.getElementById("direccion_prov").value =
+                data.direccion || "";
+
+            document.getElementById("correo").value =
+                data.correo || "";
+
+
+            const titulo = document.getElementById("tituloProveedor");
+
+            if (titulo) {
+                titulo.textContent = "Editar proveedor";
+            }
+
+
+            const botonGuardar = document.getElementById(
+                "btnGuardarProveedor"
+            );
+
+            if (botonGuardar) {
+                botonGuardar.textContent = "Actualizar proveedor";
+            }
+
+
+            const botonCancelar = document.getElementById(
+                "btnCancelarProveedor"
+            );
+
+            if (botonCancelar) {
+                botonCancelar.classList.remove("hidden");
+            }
+        }
+
+
+        // ------------------------------------------------------------------
+        // ELIMINAR PROVEEDOR
+        // ------------------------------------------------------------------
+
+        if (accion === "eliminar") {
+
+            const confirmar = confirm(
+                "¿Estás seguro de eliminar este proveedor?"
+            );
+
+            if (!confirmar) return;
+
+            const { error } = await supabaseClient
+                .from("proveedores")
+                .delete()
+                .eq("codigo", codigo);
+
+            if (error) {
+                mostrarNotificacion(
+                    "Error al eliminar proveedor: " + error.message,
+                    "error"
+                );
+                return;
+            }
+
+            mostrarNotificacion(
+                "Proveedor eliminado correctamente.",
+                "success"
+            );
+
+            await cargarProveedores();
+        }
+
+    });
+}
+
+
+// ==========================================================================
+// 4. CANCELAR EDICIÓN
+// ==========================================================================
+
+function cancelarEdicionProveedor() {
+
+    proveedorEnEdicionId = null;
+
+    if (proveedoresForm) {
+        proveedoresForm.reset();
+    }
+
+    const titulo = document.getElementById("tituloProveedor");
+
+    if (titulo) {
+        titulo.textContent = "Registrar proveedor";
+    }
+
+    const botonGuardar = document.getElementById(
+        "btnGuardarProveedor"
+    );
+
+    if (botonGuardar) {
+        botonGuardar.textContent = "Guardar proveedor";
+    }
+
+    const botonCancelar = document.getElementById(
+        "btnCancelarProveedor"
+    );
+
+    if (botonCancelar) {
+        botonCancelar.classList.add("hidden");
+    }
+}
+
+
+// ==========================================================================
+// 5. EVENTO DEL BOTÓN CANCELAR
+// ==========================================================================
+
+const btnCancelarProveedor = document.getElementById(
+    "btnCancelarProveedor"
+);
+
+if (btnCancelarProveedor) {
+    btnCancelarProveedor.addEventListener(
+        "click",
+        cancelarEdicionProveedor
+    );
+}
+
+
 
 /* ==========================================================================
    PASO 7: EJECUCIÓN AUTOMÁTICA AL CARGAR CADA PÁGINA

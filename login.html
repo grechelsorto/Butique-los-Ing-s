@@ -8,10 +8,6 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="style.css">
-    <script src="app.js"></script>
-    <script>
-        verificarSesionEnLogin();
-    </script>
 </head>
 
 <body class="min-h-screen flex flex-col items-center justify-center p-4 antialiased selection:bg-pink-500/30 selection:text-pink-200">
@@ -88,8 +84,15 @@
         </p>
     </div>
 
+    <!-- Scripts: supabase-js ya cargó en el head, ahora cargamos app.js -->
+    <script src="app.js"></script>
     <script>
-        lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
+        if (typeof verificarSesionEnLogin === 'function') {
+            verificarSesionEnLogin();
+        }
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
+        }
     </script>
 </body>
 </html>

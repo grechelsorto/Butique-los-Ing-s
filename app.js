@@ -149,7 +149,6 @@ function protegerPagina(rolesPermitidos = []) {
     }
 
     if (rolesPermitidos.length > 0 && !rolesPermitidos.includes(rol)) {
-        // Redirigir a la primera página permitida según el rol
         let destino = "inventario.html";
         if (rol === "encargado_proveedores") {
             destino = "proveedores.html";
@@ -233,20 +232,16 @@ function aplicarPermisosInventario() {
     const thAcciones = document.getElementById("thAccionesInventario");
 
     if (esSoloLectura) {
-        // Ocultar formulario de creación/edición de prendas
         if (colFormulario) {
             colFormulario.classList.add("hidden");
         }
-        // Expandir tabla de productos a ancho completo
         if (colTabla) {
             colTabla.classList.remove("lg:col-span-2");
             colTabla.classList.add("lg:col-span-3", "w-full");
         }
-        // Mostrar aviso visual de modo solo lectura
         if (bannerLectura) {
             bannerLectura.classList.remove("hidden");
         }
-        // Ocultar botón de cargar productos de ejemplo
         if (btnEjemplos) {
             btnEjemplos.classList.add("hidden");
         }
@@ -254,121 +249,6 @@ function aplicarPermisosInventario() {
             thAcciones.innerHTML = `<span>Permiso</span>`;
         }
     }
-}
-
-/* ==========================================================================
-   PASO 4: MÓDULO DE AUTENTICACIÓN (LOGIN) VINCULADO A SUPABASE (tabla usuarios)
-   ========================================================================== */
-const loginForm = document.getElementById("loginForm");
-
-if (loginForm) {
-    loginForm.addEventListener("submit", async (evento) => {
-        evento.preventDefault();
-
-        const usuarioInput = document.getElementById("usuario").value.trim();
-        const passwordInput = document.getElementById("password").value.trim();
-        const btnLogin = document.getElementById("btnLogin");
-
-        if (!usuarioInput || !passwordInput) {
-            mostrarNotificacion("Por favor ingresa usuario y contraseña.", "error");
-            return;
-        }
-
-        if (btnLogin) {
-            btnLogin.disabled = true;
-            btnLogin.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span>Verificando...</span>`;
-            refrescarIconos();
-        }
-
-        try {
-            // Consultar usuario en la tabla usuarios de Supabase
-            const { data: usuarioData, error } = await supabaseClient
-                .from('usuarios')
-                .select('*')
-                .eq('usuario', usuarioInput)
-                .eq('password', passwordInput)
-                .maybeSingle();
-
-            if (error) {
-                console.error("Error al autenticar:", error);
-                mostrarNotificacion("Error al verificar credenciales: " + error.message, "error");
-                restaurarBotonLogin();
-                return;
-            }
-
-            if (!usuarioData) {
-                // Verificación de respaldo para arranque inicial: si la tabla usuarios está vacía
-                // y se ingresa admin / 1234, registrar al administrador inicial en Supabase
-                const { count, error: countErr } = await supabaseClient
-                    .from('usuarios')
-                    .select('*', { count: 'exact', head: true });
-
-                if (!countErr && count === 0 && usuarioInput === "admin" && passwordInput === "1234") {
-                    const { error: insErr } = await supabaseClient
-                        .from('usuarios')
-                        .insert([{
-                            usuario: "admin",
-                            password: "1234",
-                            rol: "admin",
-                            identidad: null
-                        }]);
-
-                    if (!insErr) {
-                        sessionStorage.setItem("usuario", "admin");
-                        sessionStorage.setItem("rol", "admin");
-                        sessionStorage.setItem("nombre", "Administrador Principal");
-                        mostrarNotificacion("¡Administrador inicial registrado en Supabase! Entrando...", "success");
-                        setTimeout(() => {
-                            window.location.href = "inventario.html";
-                        }, 900);
-                        return;
-                    }
-                }
-
-                mostrarNotificacion("Usuario o contraseña incorrectos.", "error");
-                restaurarBotonLogin();
-                return;
-            }
-
-            // Usuario autenticado exitosamente
-            let nombreMostrar = usuarioData.usuario;
-
-            // Si el usuario tiene una identidad vinculada, buscar su nombre en personal
-            if (usuarioData.identidad) {
-                const { data: personalData } = await supabaseClient
-                    .from('personal')
-                    .select('nombres_apellidos')
-                    .eq('identidad', usuarioData.identidad)
-                    .maybeSingle();
-
-                if (personalData && personalData.nombres_apellidos) {
-                    nombreMostrar = personalData.nombres_apellidos;
-                }
-            }
-
-            // Guardar datos en sessionStorage
-            sessionStorage.setItem("usuario", usuarioData.usuario);
-            sessionStorage.setItem("rol", usuarioData.rol);
-            sessionStorage.setItem("nombre", nombreMostrar);
-            if (usuarioData.identidad) {
-                sessionStorage.setItem("identidad", usuarioData.identidad);
-            } else {
-                sessionStorage.removeItem("identidad");
-            }
-
-            const rolTexto = obtenerNombreRol(usuarioData.rol);
-            mostrarNotificacion(`¡Bienvenido/a, ${nombreMostrar}! (${rolTexto})`, "success");
-
-            setTimeout(() => {
-                window.location.href = "inventario.html";
-            }, 900);
-
-        } catch (err) {
-            console.error("Error inesperado en login:", err);
-            mostrarNotificacion("Error inesperado al iniciar sesión.", "error");
-            restaurarBotonLogin();
-        }
-    });
 }
 
 function restaurarBotonLogin() {
@@ -381,7 +261,7 @@ function restaurarBotonLogin() {
 }
 
 /* ==========================================================================
-   PASO 5: MÓDULO DE INVENTARIO (TABLA: productos)
+   PASO 4: MÓDULO DE INVENTARIO (TABLA: productos)
    ========================================================================== */
 function actualizarResumenInventario(productos = []) {
     const elTotal = document.getElementById("statTotalProductos");
@@ -413,10 +293,13 @@ async function cargarInventario() {
     `;
     refrescarIconos();
 
+    console.log("Cargando inventario de productos desde Supabase...");
     const { data: productos, error } = await supabaseClient
         .from('productos')
         .select('*')
         .order('id', { ascending: false });
+
+    console.log("Resultado carga inventario:", productos, "Error:", error);
 
     if (error) {
         console.error("Error al cargar inventario:", error);
@@ -540,66 +423,7 @@ function cancelarEdicionProducto() {
     if (btnCancelar) btnCancelar.classList.add("hidden");
 }
 
-const btnCancelarEdicion = document.getElementById("btnCancelarEdicion");
-if (btnCancelarEdicion) {
-    btnCancelarEdicion.addEventListener("click", cancelarEdicionProducto);
-}
-
-const productForm = document.getElementById("productForm");
-if (productForm) {
-    productForm.addEventListener("submit", async (evento) => {
-        evento.preventDefault();
-
-        // Validación de permisos de escritura por rol
-        const rolActual = sessionStorage.getItem("rol");
-        if (rolActual !== "admin" && rolActual !== "encargado_inventario") {
-            mostrarNotificacion("Permiso denegado: Tu rol no permite registrar ni editar prendas.", "error");
-            return;
-        }
-
-        const nombreIngresado = document.getElementById("nombre").value.trim();
-        const cantidadIngresada = document.getElementById("cantidad").value;
-        const precioIngresado = document.getElementById("precio").value;
-
-        if (idProductoEditando === null) {
-            const { error } = await supabaseClient
-                .from('productos')
-                .insert([{
-                    nombre: nombreIngresado,
-                    cantidad: parseInt(cantidadIngresada),
-                    precio: parseFloat(precioIngresado)
-                }]);
-
-            if (error) {
-                mostrarNotificacion("Error al guardar prenda: " + error.message, "error");
-            } else {
-                mostrarNotificacion("¡Prenda agregada al catálogo en la nube!", "success");
-                productForm.reset();
-                cargarInventario(); 
-            }
-        } else {
-            const { error } = await supabaseClient
-                .from('productos')
-                .update({
-                    nombre: nombreIngresado,
-                    cantidad: parseInt(cantidadIngresada),
-                    precio: parseFloat(precioIngresado)
-                })
-                .eq('id', idProductoEditando);
-
-            if (error) {
-                mostrarNotificacion("Error al actualizar prenda: " + error.message, "error");
-            } else {
-                mostrarNotificacion("¡Prenda actualizada con éxito!", "success");
-                cancelarEdicionProducto();
-                cargarInventario();
-            }
-        }
-    });
-}
-
 async function eliminarProducto(id) {
-    // Validación de permisos de escritura por rol
     const rolActual = sessionStorage.getItem("rol");
     if (rolActual !== "admin" && rolActual !== "encargado_inventario") {
         mostrarNotificacion("Permiso denegado: Tu rol no permite eliminar prendas del catálogo.", "error");
@@ -608,10 +432,13 @@ async function eliminarProducto(id) {
 
     const confirmado = await mostrarConfirmacion("¿Estás seguro de que deseas retirar esta prenda del catálogo?");
     if (confirmado) {
+        console.log("Eliminando producto id:", id);
         const { error } = await supabaseClient
             .from('productos')
             .delete()
             .eq('id', id);
+
+        console.log("Resultado eliminar producto:", error);
 
         if (error) {
             mostrarNotificacion("Error al eliminar prenda: " + error.message, "error");
@@ -683,9 +510,12 @@ async function cargarProductosEjemplo() {
         { nombre: "Bufanda de cachemira estampada - Única", cantidad: 16, precio: 320.00 }
     ];
 
+    console.log("Insertando productos de ejemplo en Supabase...");
     const { error } = await supabaseClient
         .from('productos')
         .insert(productosEjemplo);
+
+    console.log("Resultado insertar ejemplos:", error);
 
     if (error) {
         mostrarNotificacion("Error al cargar productos de ejemplo: " + error.message, "error");
@@ -695,13 +525,8 @@ async function cargarProductosEjemplo() {
     }
 }
 
-const btnCargarEjemplos = document.getElementById("btnCargarEjemplos");
-if (btnCargarEjemplos) {
-    btnCargarEjemplos.addEventListener("click", cargarProductosEjemplo);
-}
-
 /* ==========================================================================
-   PASO 6: MÓDULO DE PERSONAL (TABLA: personal) - SOLO ADMIN
+   PASO 5: MÓDULO DE PERSONAL (TABLA: personal) - SOLO ADMIN
    ========================================================================== */
 function actualizarResumenPersonal(listaPersonal = []) {
     const elTotal = document.getElementById("statTotalPersonal");
@@ -733,9 +558,12 @@ async function cargarPersonal() {
     `;
     refrescarIconos();
 
+    console.log("Cargando personal desde Supabase...");
     const { data: listaPersonal, error } = await supabaseClient
         .from('personal')
         .select('*');
+
+    console.log("Resultado carga personal:", listaPersonal, "Error:", error);
 
     if (error) {
         console.error("Error al cargar personal:", error);
@@ -814,10 +642,13 @@ async function eliminarPersonal(identidad) {
 
     const confirmado = await mostrarConfirmacion("¿Estás seguro de que deseas retirar a este integrante del Equipo de la Boutique?");
     if (confirmado) {
+        console.log("Eliminando personal con identidad:", identidad);
         const { error } = await supabaseClient
             .from('personal')
             .delete()
             .eq('identidad', identidad);
+
+        console.log("Resultado eliminar personal:", error);
 
         if (error) {
             mostrarNotificacion("Error al eliminar integrante: " + error.message, "error");
@@ -830,38 +661,8 @@ async function eliminarPersonal(identidad) {
     }
 }
 
-const personalForm = document.getElementById("personalForm");
-if (personalForm) {
-    personalForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-
-        const rolActual = sessionStorage.getItem("rol");
-        if (rolActual !== "admin") {
-            mostrarNotificacion("Permiso denegado: Solo el Administrador puede registrar colaboradores.", "error");
-            return;
-        }
-
-        const { error } = await supabaseClient.from('personal').insert([{
-            identidad: document.getElementById("identidad").value.trim(),
-            nombres_apellidos: document.getElementById("nombres_apellidos").value.trim(),
-            genero: document.getElementById("genero").value,
-            telefono: document.getElementById("telefono").value.trim(),
-            direccion: document.getElementById("direccion").value.trim()
-        }]);
-
-        if (error) {
-            mostrarNotificacion("Error al registrar colaborador: " + error.message, "error");
-        } else {
-            mostrarNotificacion("¡Colaborador registrado en el Equipo de la Boutique!", "success");
-            personalForm.reset();
-            cargarPersonal();
-            cargarSelectEmpleados();
-        }
-    });
-}
-
 /* ==========================================================================
-   PASO 7: GESTIÓN DE CUENTAS DE USUARIOS (TABLA: usuarios) - SOLO ADMIN
+   PASO 6: GESTIÓN DE CUENTAS DE USUARIOS (TABLA: usuarios) - SOLO ADMIN
    Columnas: usuario (PK), password, rol, identidad (FK)
    Roles: admin, encargado_inventario, encargado_proveedores, asesor
    ========================================================================== */
@@ -869,10 +670,13 @@ async function cargarSelectEmpleados() {
     const select = document.getElementById("nuevoEmpleadoIdentidad");
     if (!select) return;
 
+    console.log("Consultando personal para cargarSelectEmpleados()...");
     const { data: empleados, error } = await supabaseClient
         .from('personal')
         .select('identidad, nombres_apellidos')
         .order('nombres_apellidos', { ascending: true });
+
+    console.log("Resultado select empleados:", empleados, "Error:", error);
 
     if (error) {
         console.error("Error al cargar selector de empleados:", error);
@@ -907,124 +711,158 @@ async function cargarUsuarios() {
     `;
     refrescarIconos();
 
-    // Consultar lista de usuarios
-    const { data: usuarios, error } = await supabaseClient
-        .from('usuarios')
-        .select('*')
-        .order('usuario', { ascending: true });
+    console.log("Ejecutando cargarUsuarios(). Consultando tabla 'usuarios'...");
 
-    if (error) {
-        console.error("Error al cargar usuarios:", error);
-        mostrarNotificacion("Error al cargar usuarios: " + error.message, "error");
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="4" class="py-6 text-center text-rose-400">
-                    <div class="inline-flex items-center gap-2">
-                        <i data-lucide="alert-triangle" class="w-4 h-4"></i>
-                        <span>Error al cargar las cuentas de usuarios.</span>
+    try {
+        const { data: usuarios, error } = await supabaseClient
+            .from('usuarios')
+            .select('*')
+            .order('usuario', { ascending: true });
+
+        console.log("Resultado consulta usuarios (cargarUsuarios):", usuarios);
+        console.log("Error consulta usuarios (cargarUsuarios):", error);
+
+        if (error) {
+            console.error("Error devuelto por Supabase al cargar usuarios:", error);
+            mostrarNotificacion("Error al cargar usuarios: " + (error.message || JSON.stringify(error)), "error");
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="py-8 text-center">
+                        <div class="inline-flex flex-col items-center gap-2 max-w-md mx-auto p-4 rounded-xl bg-rose-500/10 border border-rose-500/40 text-rose-300 shadow-xl">
+                            <div class="flex items-center gap-2 text-rose-400 font-semibold text-sm">
+                                <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0"></i>
+                                <span>Error al consultar la tabla usuarios en Supabase</span>
+                            </div>
+                            <p class="text-xs text-rose-200 font-mono break-all">${escaparAtributo(error.message || JSON.stringify(error))}</p>
+                            ${error.hint ? `<p class="text-[11px] text-slate-400">Pista: ${escaparAtributo(error.hint)}</p>` : ''}
+                            ${error.details ? `<p class="text-[11px] text-slate-400">Detalles: ${escaparAtributo(error.details)}</p>` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `;
+            refrescarIconos();
+            return;
+        }
+
+        // Consultar nombres de personal para asociar nombres reales
+        console.log("Consultando tabla personal para cruzar colaboradores...");
+        const { data: listaPersonal, error: errorPersonal } = await supabaseClient
+            .from('personal')
+            .select('identidad, nombres_apellidos');
+
+        console.log("Resultado consulta personal (cargarUsuarios):", listaPersonal);
+        console.log("Error consulta personal (cargarUsuarios):", errorPersonal);
+
+        const mapaPersonal = {};
+        if (listaPersonal) {
+            listaPersonal.forEach(p => {
+                mapaPersonal[p.identidad] = p.nombres_apellidos;
+            });
+        }
+
+        if (!usuarios || usuarios.length === 0) {
+            console.log("No hay usuarios registrados en la tabla 'usuarios'.");
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="py-10 text-center text-slate-400">
+                        <div class="space-y-2">
+                            <div class="w-10 h-10 mx-auto rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
+                                <i data-lucide="user-x" class="w-5 h-5"></i>
+                            </div>
+                            <p class="font-medium text-slate-300 text-sm">No hay cuentas de usuario registradas aún</p>
+                            <p class="text-xs text-slate-500">Usa el formulario de la izquierda para crear la primera cuenta de acceso.</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            refrescarIconos();
+            return;
+        }
+
+        const usuarioLogueado = sessionStorage.getItem("usuario");
+        tableBody.innerHTML = "";
+
+        usuarios.forEach(u => {
+            const fila = document.createElement("tr");
+            fila.className = "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors duration-150";
+
+            let rolBadge = "";
+            if (u.rol === "admin") {
+                rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-pink-500/15 text-pink-300 border border-pink-500/35"><i data-lucide="shield" class="w-3 h-3"></i>Administrador</span>`;
+            } else if (u.rol === "encargado_inventario") {
+                rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/35"><i data-lucide="shirt" class="w-3 h-3"></i>Encargado Inventario</span>`;
+            } else if (u.rol === "encargado_proveedores") {
+                rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/35"><i data-lucide="truck" class="w-3 h-3"></i>Encargado Proveedores</span>`;
+            } else {
+                rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/35"><i data-lucide="tag" class="w-3 h-3"></i>Asesor de Moda</span>`;
+            }
+
+            let colaboradorTexto = `<span class="text-xs text-slate-500 italic">Sin vincular</span>`;
+            if (u.identidad) {
+                const nombreReal = mapaPersonal[u.identidad] || "Colaborador";
+                colaboradorTexto = `
+                    <div>
+                        <span class="text-sm font-medium text-slate-200 block">${escaparAtributo(nombreReal)}</span>
+                        <span class="text-[11px] text-pink-300/80 font-mono">${escaparAtributo(u.identidad)}</span>
+                    </div>
+                `;
+            }
+
+            let celdaAccion = "";
+            if (u.usuario === usuarioLogueado) {
+                celdaAccion = `
+                    <span class="inline-flex items-center gap-1 text-[11px] text-pink-400 bg-pink-500/10 border border-pink-500/30 px-2 py-1 rounded-lg font-medium">
+                        <i data-lucide="user-check" class="w-3 h-3"></i>
+                        <span>Sesión actual</span>
+                    </span>
+                `;
+            } else {
+                celdaAccion = `
+                    <button type="button"
+                            data-usuario="${escaparAtributo(u.usuario)}"
+                            onclick="eliminarUsuario(this.dataset.usuario)"
+                            class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 hover:border-rose-400/50 transition">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        <span>Eliminar</span>
+                    </button>
+                `;
+            }
+
+            fila.innerHTML = `
+                <td class="py-3.5 px-4 font-semibold text-slate-100 whitespace-nowrap">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="user" class="w-4 h-4 text-pink-400"></i>
+                        <span>${escaparAtributo(u.usuario)}</span>
                     </div>
                 </td>
-            </tr>
-        `;
-        refrescarIconos();
-        return;
-    }
+                <td class="py-3.5 px-4">${rolBadge}</td>
+                <td class="py-3.5 px-4">${colaboradorTexto}</td>
+                <td class="py-3.5 px-4 text-center">${celdaAccion}</td>
+            `;
 
-    // Consultar nombres de personal para asociar nombres reales
-    const { data: listaPersonal } = await supabaseClient
-        .from('personal')
-        .select('identidad, nombres_apellidos');
-
-    const mapaPersonal = {};
-    if (listaPersonal) {
-        listaPersonal.forEach(p => {
-            mapaPersonal[p.identidad] = p.nombres_apellidos;
+            tableBody.appendChild(fila);
         });
-    }
 
-    if (!usuarios || usuarios.length === 0) {
+        refrescarIconos();
+
+    } catch (errEx) {
+        console.error("Excepción inesperada en cargarUsuarios:", errEx);
         tableBody.innerHTML = `
             <tr>
-                <td colspan="4" class="py-8 text-center text-slate-400">
-                    <div class="space-y-1">
-                        <p class="font-medium text-slate-300">No hay cuentas de usuario registradas</p>
-                        <p class="text-xs text-slate-500">Crea la primera cuenta en el formulario de la izquierda.</p>
+                <td colspan="4" class="py-8 text-center">
+                    <div class="inline-flex flex-col items-center gap-2 max-w-md mx-auto p-4 rounded-xl bg-rose-500/10 border border-rose-500/40 text-rose-300 shadow-xl">
+                        <div class="flex items-center gap-2 text-rose-400 font-semibold text-sm">
+                            <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0"></i>
+                            <span>Error inesperado al cargar usuarios</span>
+                        </div>
+                        <p class="text-xs text-rose-200 font-mono break-all">${escaparAtributo(errEx.message || errEx)}</p>
                     </div>
                 </td>
             </tr>
         `;
         refrescarIconos();
-        return;
+        mostrarNotificacion("Error al cargar usuarios: " + (errEx.message || errEx), "error");
     }
-
-    const usuarioLogueado = sessionStorage.getItem("usuario");
-    tableBody.innerHTML = "";
-
-    usuarios.forEach(u => {
-        const fila = document.createElement("tr");
-        fila.className = "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors duration-150";
-
-        // Badge de rol estilizado
-        let rolBadge = "";
-        if (u.rol === "admin") {
-            rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-pink-500/15 text-pink-300 border border-pink-500/35"><i data-lucide="shield" class="w-3 h-3"></i>Administrador</span>`;
-        } else if (u.rol === "encargado_inventario") {
-            rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/35"><i data-lucide="shirt" class="w-3 h-3"></i>Encargado Inventario</span>`;
-        } else if (u.rol === "encargado_proveedores") {
-            rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/35"><i data-lucide="truck" class="w-3 h-3"></i>Encargado Proveedores</span>`;
-        } else {
-            rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/35"><i data-lucide="tag" class="w-3 h-3"></i>Asesor de Moda</span>`;
-        }
-
-        // Colaborador asociado
-        let colaboradorTexto = `<span class="text-xs text-slate-500 italic">Sin vincular</span>`;
-        if (u.identidad) {
-            const nombreReal = mapaPersonal[u.identidad] || "Colaborador";
-            colaboradorTexto = `
-                <div>
-                    <span class="text-sm font-medium text-slate-200 block">${escaparAtributo(nombreReal)}</span>
-                    <span class="text-[11px] text-pink-300/80 font-mono">${escaparAtributo(u.identidad)}</span>
-                </div>
-            `;
-        }
-
-        // Botón de eliminar (protegido si es el usuario logueado)
-        let celdaAccion = "";
-        if (u.usuario === usuarioLogueado) {
-            celdaAccion = `
-                <span class="inline-flex items-center gap-1 text-[11px] text-pink-400 bg-pink-500/10 border border-pink-500/30 px-2 py-1 rounded-lg font-medium">
-                    <i data-lucide="user-check" class="w-3 h-3"></i>
-                    <span>Sesión actual</span>
-                </span>
-            `;
-        } else {
-            celdaAccion = `
-                <button type="button"
-                        data-usuario="${escaparAtributo(u.usuario)}"
-                        onclick="eliminarUsuario(this.dataset.usuario)"
-                        class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 hover:border-rose-400/50 transition">
-                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                    <span>Eliminar</span>
-                </button>
-            `;
-        }
-
-        fila.innerHTML = `
-            <td class="py-3.5 px-4 font-semibold text-slate-100 whitespace-nowrap">
-                <div class="flex items-center gap-2">
-                    <i data-lucide="user" class="w-4 h-4 text-pink-400"></i>
-                    <span>${escaparAtributo(u.usuario)}</span>
-                </div>
-            </td>
-            <td class="py-3.5 px-4">${rolBadge}</td>
-            <td class="py-3.5 px-4">${colaboradorTexto}</td>
-            <td class="py-3.5 px-4 text-center">${celdaAccion}</td>
-        `;
-
-        tableBody.appendChild(fila);
-    });
-
-    refrescarIconos();
 }
 
 async function eliminarUsuario(nombreUsuario) {
@@ -1041,10 +879,13 @@ async function eliminarUsuario(nombreUsuario) {
 
     const confirmado = await mostrarConfirmacion(`¿Estás seguro de que deseas eliminar la cuenta de usuario "${nombreUsuario}"?`);
     if (confirmado) {
+        console.log("Eliminando usuario de Supabase:", nombreUsuario);
         const { error } = await supabaseClient
             .from('usuarios')
             .delete()
             .eq('usuario', nombreUsuario);
+
+        console.log("Resultado eliminar usuario:", error);
 
         if (error) {
             mostrarNotificacion("Error al eliminar usuario: " + error.message, "error");
@@ -1055,61 +896,21 @@ async function eliminarUsuario(nombreUsuario) {
     }
 }
 
-const usuarioForm = document.getElementById("usuarioForm");
-if (usuarioForm) {
-    usuarioForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-
-        const rolActual = sessionStorage.getItem("rol");
-        if (rolActual !== "admin") {
-            mostrarNotificacion("Permiso denegado: Solo el Administrador puede registrar cuentas de usuario.", "error");
-            return;
-        }
-
-        const usuarioVal = document.getElementById("nuevoUsuario").value.trim();
-        const passwordVal = document.getElementById("nuevoPassword").value.trim();
-        const rolVal = document.getElementById("nuevoRol").value;
-        const identidadSelect = document.getElementById("nuevoEmpleadoIdentidad");
-        const identidadVal = identidadSelect ? identidadSelect.value.trim() : null;
-
-        if (!usuarioVal || !passwordVal || !rolVal) {
-            mostrarNotificacion("Por favor completa los campos obligatorios del usuario.", "error");
-            return;
-        }
-
-        const nuevoUsuarioObj = {
-            usuario: usuarioVal,
-            password: passwordVal,
-            rol: rolVal,
-            identidad: identidadVal ? identidadVal : null
-        };
-
-        const { error } = await supabaseClient
-            .from('usuarios')
-            .insert([nuevoUsuarioObj]);
-
-        if (error) {
-            mostrarNotificacion("Error al crear usuario: " + error.message, "error");
-        } else {
-            mostrarNotificacion(`¡Cuenta de usuario "${usuarioVal}" creada exitosamente!`, "success");
-            usuarioForm.reset();
-            cargarUsuarios();
-        }
-    });
-}
-
 /* ==========================================================================
-   PASO 8: MÓDULO DE PROVEEDORES (TABLA: proveedores)
+   PASO 7: MÓDULO DE PROVEEDORES (TABLA: proveedores)
    Roles con permiso: admin, encargado_proveedores
    ========================================================================== */
 async function cargarProveedores() {
     const tableBody = document.getElementById("proveedoresTableBody");
     if (!tableBody) return;
 
+    console.log("Cargando proveedores desde Supabase...");
     const { data: listaProveedores, error } = await supabaseClient
         .from("proveedores")
         .select("*")
         .order("codigo", { ascending: false });
+
+    console.log("Resultado carga proveedores:", listaProveedores, "Error:", error);
 
     if (error) {
         console.error("Error al cargar proveedores:", error);
@@ -1182,128 +983,10 @@ async function cargarProveedores() {
     refrescarIconos();
 }
 
-const proveedoresForm = document.getElementById("proveedoresForm");
-if (proveedoresForm) {
-    proveedoresForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-
-        // Validación de permisos de escritura por rol
-        const rolActual = sessionStorage.getItem("rol");
-        if (rolActual !== "admin" && rolActual !== "encargado_proveedores") {
-            mostrarNotificacion("Permiso denegado: Tu rol no permite gestionar proveedores.", "error");
-            return;
-        }
-
-        const proveedor = {
-            empresa: document.getElementById("empresa").value.trim(),
-            encargado: document.getElementById("encargado").value.trim(),
-            telefono: document.getElementById("telefono_prov").value.trim(),
-            direccion: document.getElementById("direccion_prov").value.trim(),
-            correo: document.getElementById("correo").value.trim()
-        };
-
-        let resultado;
-        if (proveedorEnEdicionId !== null) {
-            resultado = await supabaseClient
-                .from("proveedores")
-                .update(proveedor)
-                .eq("codigo", proveedorEnEdicionId);
-        } else {
-            resultado = await supabaseClient
-                .from("proveedores")
-                .insert([proveedor]);
-        }
-
-        if (resultado.error) {
-            mostrarNotificacion("Error al guardar proveedor: " + resultado.error.message, "error");
-            return;
-        }
-
-        if (proveedorEnEdicionId !== null) {
-            mostrarNotificacion("Proveedor actualizado correctamente.", "success");
-        } else {
-            mostrarNotificacion("Proveedor registrado correctamente.", "success");
-        }
-
-        cancelarEdicionProveedor();
-        await cargarProveedores();
-    });
-}
-
-const proveedoresTableBody = document.getElementById("proveedoresTableBody");
-if (proveedoresTableBody) {
-    proveedoresTableBody.addEventListener("click", async (e) => {
-        const boton = e.target.closest("button[data-accion]");
-        if (!boton) return;
-
-        // Validación de permisos de escritura por rol
-        const rolActual = sessionStorage.getItem("rol");
-        if (rolActual !== "admin" && rolActual !== "encargado_proveedores") {
-            mostrarNotificacion("Permiso denegado: No tienes permisos para modificar proveedores.", "error");
-            return;
-        }
-
-        const codigo = boton.dataset.id;
-        const accion = boton.dataset.accion;
-
-        if (accion === "editar") {
-            const { data, error } = await supabaseClient
-                .from("proveedores")
-                .select("*")
-                .eq("codigo", codigo)
-                .single();
-
-            if (error) {
-                mostrarNotificacion("Error al buscar proveedor: " + error.message, "error");
-                return;
-            }
-
-            proveedorEnEdicionId = codigo;
-            document.getElementById("empresa").value = data.empresa || "";
-            document.getElementById("encargado").value = data.encargado || "";
-            document.getElementById("telefono_prov").value = data.telefono || "";
-            document.getElementById("direccion_prov").value = data.direccion || "";
-            document.getElementById("correo").value = data.correo || "";
-
-            const titulo = document.getElementById("tituloProveedor");
-            if (titulo) titulo.textContent = "Editar proveedor";
-
-            const botonGuardar = document.getElementById("btnGuardarProveedor");
-            if (botonGuardar) {
-                botonGuardar.innerHTML = `
-                    <i data-lucide="save" class="w-4 h-4"></i>
-                    <span>Actualizar proveedor</span>
-                `;
-                refrescarIconos();
-            }
-
-            const botonCancelar = document.getElementById("btnCancelarProveedor");
-            if (botonCancelar) botonCancelar.classList.remove("hidden");
-        }
-
-        if (accion === "eliminar") {
-            const confirmar = await mostrarConfirmacion("¿Estás seguro de eliminar este proveedor?");
-            if (!confirmar) return;
-
-            const { error } = await supabaseClient
-                .from("proveedores")
-                .delete()
-                .eq("codigo", codigo);
-
-            if (error) {
-                mostrarNotificacion("Error al eliminar proveedor: " + error.message, "error");
-                return;
-            }
-
-            mostrarNotificacion("Proveedor eliminado correctamente.", "success");
-            await cargarProveedores();
-        }
-    });
-}
-
 function cancelarEdicionProveedor() {
     proveedorEnEdicionId = null;
 
+    const proveedoresForm = document.getElementById("proveedoresForm");
     if (proveedoresForm) {
         proveedoresForm.reset();
     }
@@ -1328,13 +1011,8 @@ function cancelarEdicionProveedor() {
     }
 }
 
-const btnCancelarProveedor = document.getElementById("btnCancelarProveedor");
-if (btnCancelarProveedor) {
-    btnCancelarProveedor.addEventListener("click", cancelarEdicionProveedor);
-}
-
 /* ==========================================================================
-   PASO 9: CATÁLOGO PÚBLICO PARA CLIENTES (index.html)
+   PASO 8: CATÁLOGO PÚBLICO PARA CLIENTES (index.html)
    ========================================================================== */
 async function cargarCatalogoPublico() {
     const contenedor = document.getElementById("catalogoPublicoGrid");
@@ -1350,10 +1028,13 @@ async function cargarCatalogoPublico() {
     `;
     refrescarIconos();
 
+    console.log("Cargando catálogo público...");
     const { data: productos, error } = await supabaseClient
         .from('productos')
         .select('*')
         .order('id', { ascending: false });
+
+    console.log("Resultado catálogo público:", productos, "Error:", error);
 
     if (error) {
         console.error("Error al cargar catálogo público:", error);
@@ -1470,18 +1151,461 @@ function filtrarCatalogoPublico(termino) {
     renderizarCatalogoPublico(filtrados);
 }
 
-const inputBusquedaCatalogo = document.getElementById("inputBusquedaCatalogo");
-if (inputBusquedaCatalogo) {
-    inputBusquedaCatalogo.addEventListener("input", (e) => {
-        filtrarCatalogoPublico(e.target.value);
-    });
+/* ==========================================================================
+   PASO 9: INICIALIZACIÓN DE FORMULARIOS Y EVENT LISTENERS
+   Garantiza que todos los elementos existan en el DOM antes de bindear eventos
+   ========================================================================== */
+function inicializarFormulariosYEventos() {
+    // ----------------------------------------------------------------------
+    // 1. FORMULARIO DE LOGIN (login.html)
+    // ----------------------------------------------------------------------
+    const loginForm = document.getElementById("loginForm");
+    if (loginForm && !loginForm.dataset.listenerAdjunto) {
+        loginForm.dataset.listenerAdjunto = "true";
+        loginForm.addEventListener("submit", async (evento) => {
+            evento.preventDefault();
+
+            const usuarioInput = document.getElementById("usuario").value.trim();
+            const passwordInput = document.getElementById("password").value.trim();
+            const btnLogin = document.getElementById("btnLogin");
+
+            if (!usuarioInput || !passwordInput) {
+                mostrarNotificacion("Por favor ingresa usuario y contraseña.", "error");
+                return;
+            }
+
+            if (btnLogin) {
+                btnLogin.disabled = true;
+                btnLogin.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span>Verificando...</span>`;
+                refrescarIconos();
+            }
+
+            try {
+                console.log("Intentando login para:", { usuario: usuarioInput });
+                console.log("Consultando tabla usuarios en Supabase...");
+
+                const { data: usuarioData, error: errorUsuario } = await supabaseClient
+                    .from('usuarios')
+                    .select('*')
+                    .eq('usuario', usuarioInput)
+                    .eq('password', passwordInput)
+                    .maybeSingle();
+
+                console.log("Resultado consulta usuarios:", usuarioData);
+                console.log("Error consulta usuarios:", errorUsuario);
+
+                if (errorUsuario) {
+                    console.error("Error devuelto por Supabase al consultar usuarios:", errorUsuario);
+                    mostrarNotificacion("Error al verificar credenciales: " + (errorUsuario.message || JSON.stringify(errorUsuario)), "error");
+                    restaurarBotonLogin();
+                    return;
+                }
+
+                if (!usuarioData) {
+                    console.warn("No se encontró ningún registro en usuarios con esas credenciales.");
+
+                    // Verificación de respaldo para arranque inicial: si la tabla usuarios está vacía
+                    // y se ingresa admin / 1234, registrar al administrador inicial en Supabase
+                    console.log("Verificando si la tabla usuarios está vacía en Supabase...");
+                    const { count, error: countErr } = await supabaseClient
+                        .from('usuarios')
+                        .select('*', { count: 'exact', head: true });
+
+                    console.log("Conteo de usuarios en Supabase:", count, "Error conteo:", countErr);
+
+                    if (!countErr && count === 0 && usuarioInput === "admin" && passwordInput === "1234") {
+                        console.log("Tabla usuarios vacía. Registrando usuario admin inicial...");
+                        const { error: insErr } = await supabaseClient
+                            .from('usuarios')
+                            .insert([{
+                                usuario: "admin",
+                                password: "1234",
+                                rol: "admin",
+                                identidad: null
+                            }]);
+
+                        console.log("Resultado inserción admin inicial, error:", insErr);
+
+                        if (!insErr) {
+                            sessionStorage.setItem("usuario", "admin");
+                            sessionStorage.setItem("rol", "admin");
+                            sessionStorage.setItem("nombre", "Administrador Principal");
+                            mostrarNotificacion("¡Administrador inicial registrado en Supabase! Entrando...", "success");
+                            setTimeout(() => {
+                                window.location.href = "inventario.html";
+                            }, 800);
+                            return;
+                        }
+                    }
+
+                    mostrarNotificacion("Usuario o contraseña incorrectos.", "error");
+                    restaurarBotonLogin();
+                    return;
+                }
+
+                // Usuario encontrado con éxito
+                let nombreMostrar = usuarioData.usuario;
+
+                if (usuarioData.identidad) {
+                    console.log("Consultando personal para identidad:", usuarioData.identidad);
+                    const { data: personalData, error: personalError } = await supabaseClient
+                        .from('personal')
+                        .select('nombres_apellidos')
+                        .eq('identidad', usuarioData.identidad)
+                        .maybeSingle();
+
+                    console.log("Resultado consulta personal:", personalData, "Error personal:", personalError);
+
+                    if (personalData && personalData.nombres_apellidos) {
+                        nombreMostrar = personalData.nombres_apellidos;
+                    }
+                }
+
+                sessionStorage.setItem("usuario", usuarioData.usuario);
+                sessionStorage.setItem("rol", usuarioData.rol);
+                sessionStorage.setItem("nombre", nombreMostrar);
+                if (usuarioData.identidad) {
+                    sessionStorage.setItem("identidad", usuarioData.identidad);
+                } else {
+                    sessionStorage.removeItem("identidad");
+                }
+
+                const rolTexto = obtenerNombreRol(usuarioData.rol);
+                mostrarNotificacion(`¡Bienvenido/a, ${nombreMostrar}! (${rolTexto})`, "success");
+
+                setTimeout(() => {
+                    window.location.href = "inventario.html";
+                }, 800);
+
+            } catch (err) {
+                console.error("Excepción en submit de loginForm:", err);
+                mostrarNotificacion("Error al iniciar sesión: " + (err.message || err), "error");
+                restaurarBotonLogin();
+            }
+        });
+    }
+
+    // ----------------------------------------------------------------------
+    // 2. FORMULARIO DE PRODUCTOS / PRENDAS (inventario.html)
+    // ----------------------------------------------------------------------
+    const productForm = document.getElementById("productForm");
+    if (productForm && !productForm.dataset.listenerAdjunto) {
+        productForm.dataset.listenerAdjunto = "true";
+        productForm.addEventListener("submit", async (evento) => {
+            evento.preventDefault();
+
+            const rolActual = sessionStorage.getItem("rol");
+            if (rolActual !== "admin" && rolActual !== "encargado_inventario") {
+                mostrarNotificacion("Permiso denegado: Tu rol no permite registrar ni editar prendas.", "error");
+                return;
+            }
+
+            const nombreIngresado = document.getElementById("nombre").value.trim();
+            const cantidadIngresada = document.getElementById("cantidad").value;
+            const precioIngresado = document.getElementById("precio").value;
+
+            if (idProductoEditando === null) {
+                console.log("Insertando producto nuevo:", { nombre: nombreIngresado, cantidad: cantidadIngresada, precio: precioIngresado });
+                const { error } = await supabaseClient
+                    .from('productos')
+                    .insert([{
+                        nombre: nombreIngresado,
+                        cantidad: parseInt(cantidadIngresada),
+                        precio: parseFloat(precioIngresado)
+                    }]);
+
+                console.log("Resultado insertar producto:", error);
+
+                if (error) {
+                    mostrarNotificacion("Error al guardar prenda: " + error.message, "error");
+                } else {
+                    mostrarNotificacion("¡Prenda agregada al catálogo en la nube!", "success");
+                    productForm.reset();
+                    cargarInventario(); 
+                }
+            } else {
+                console.log("Actualizando producto id:", idProductoEditando);
+                const { error } = await supabaseClient
+                    .from('productos')
+                    .update({
+                        nombre: nombreIngresado,
+                        cantidad: parseInt(cantidadIngresada),
+                        precio: parseFloat(precioIngresado)
+                    })
+                    .eq('id', idProductoEditando);
+
+                console.log("Resultado actualizar producto:", error);
+
+                if (error) {
+                    mostrarNotificacion("Error al actualizar prenda: " + error.message, "error");
+                } else {
+                    mostrarNotificacion("¡Prenda actualizada con éxito!", "success");
+                    cancelarEdicionProducto();
+                    cargarInventario();
+                }
+            }
+        });
+    }
+
+    const btnCancelarEdicion = document.getElementById("btnCancelarEdicion");
+    if (btnCancelarEdicion && !btnCancelarEdicion.dataset.listenerAdjunto) {
+        btnCancelarEdicion.dataset.listenerAdjunto = "true";
+        btnCancelarEdicion.addEventListener("click", cancelarEdicionProducto);
+    }
+
+    // ----------------------------------------------------------------------
+    // 3. FORMULARIO DE PERSONAL (personal.html)
+    // ----------------------------------------------------------------------
+    const personalForm = document.getElementById("personalForm");
+    if (personalForm && !personalForm.dataset.listenerAdjunto) {
+        personalForm.dataset.listenerAdjunto = "true";
+        personalForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const rolActual = sessionStorage.getItem("rol");
+            if (rolActual !== "admin") {
+                mostrarNotificacion("Permiso denegado: Solo el Administrador puede registrar colaboradores.", "error");
+                return;
+            }
+
+            const nuevoColaborador = {
+                identidad: document.getElementById("identidad").value.trim(),
+                nombres_apellidos: document.getElementById("nombres_apellidos").value.trim(),
+                genero: document.getElementById("genero").value,
+                telefono: document.getElementById("telefono").value.trim(),
+                direccion: document.getElementById("direccion").value.trim()
+            };
+
+            console.log("Insertando colaborador en Supabase:", nuevoColaborador);
+            const { error } = await supabaseClient.from('personal').insert([nuevoColaborador]);
+            console.log("Resultado insertar personal:", error);
+
+            if (error) {
+                mostrarNotificacion("Error al registrar colaborador: " + error.message, "error");
+            } else {
+                mostrarNotificacion("¡Colaborador registrado en el Equipo de la Boutique!", "success");
+                personalForm.reset();
+                cargarPersonal();
+                cargarSelectEmpleados();
+            }
+        });
+    }
+
+    // ----------------------------------------------------------------------
+    // 4. FORMULARIO DE CREAR USUARIOS (personal.html)
+    // ----------------------------------------------------------------------
+    const usuarioForm = document.getElementById("usuarioForm");
+    if (usuarioForm && !usuarioForm.dataset.listenerAdjunto) {
+        usuarioForm.dataset.listenerAdjunto = "true";
+        usuarioForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const rolActual = sessionStorage.getItem("rol");
+            if (rolActual !== "admin") {
+                mostrarNotificacion("Permiso denegado: Solo el Administrador puede registrar cuentas de usuario.", "error");
+                return;
+            }
+
+            const usuarioVal = document.getElementById("nuevoUsuario").value.trim();
+            const passwordVal = document.getElementById("nuevoPassword").value.trim();
+            const rolVal = document.getElementById("nuevoRol").value;
+            const identidadSelect = document.getElementById("nuevoEmpleadoIdentidad");
+            const identidadVal = (identidadSelect && identidadSelect.value.trim()) ? identidadSelect.value.trim() : null;
+
+            if (!usuarioVal || !passwordVal || !rolVal) {
+                mostrarNotificacion("Por favor completa los campos obligatorios del usuario.", "error");
+                return;
+            }
+
+            const nuevoUsuarioObj = {
+                usuario: usuarioVal,
+                password: passwordVal,
+                rol: rolVal,
+                identidad: identidadVal
+            };
+
+            console.log("Insertando nuevo usuario en Supabase:", nuevoUsuarioObj);
+
+            try {
+                const { data, error } = await supabaseClient
+                    .from('usuarios')
+                    .insert([nuevoUsuarioObj])
+                    .select();
+
+                console.log("Resultado inserción usuario:", data, "Error:", error);
+
+                if (error) {
+                    console.error("Error al crear usuario:", error);
+                    mostrarNotificacion("Error al crear usuario: " + (error.message || JSON.stringify(error)), "error");
+                    return;
+                }
+
+                mostrarNotificacion(`¡Cuenta de usuario "${usuarioVal}" creada exitosamente!`, "success");
+                usuarioForm.reset();
+                await cargarUsuarios();
+            } catch (err) {
+                console.error("Excepción al crear usuario:", err);
+                mostrarNotificacion("Error al crear usuario: " + (err.message || err), "error");
+            }
+        });
+    }
+
+    // ----------------------------------------------------------------------
+    // 5. FORMULARIO Y TABLA DE PROVEEDORES (proveedores.html)
+    // ----------------------------------------------------------------------
+    const proveedoresForm = document.getElementById("proveedoresForm");
+    if (proveedoresForm && !proveedoresForm.dataset.listenerAdjunto) {
+        proveedoresForm.dataset.listenerAdjunto = "true";
+        proveedoresForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const rolActual = sessionStorage.getItem("rol");
+            if (rolActual !== "admin" && rolActual !== "encargado_proveedores") {
+                mostrarNotificacion("Permiso denegado: Tu rol no permite gestionar proveedores.", "error");
+                return;
+            }
+
+            const proveedor = {
+                empresa: document.getElementById("empresa").value.trim(),
+                encargado: document.getElementById("encargado").value.trim(),
+                telefono: document.getElementById("telefono_prov").value.trim(),
+                direccion: document.getElementById("direccion_prov").value.trim(),
+                correo: document.getElementById("correo").value.trim()
+            };
+
+            let resultado;
+            if (proveedorEnEdicionId !== null) {
+                console.log("Actualizando proveedor:", proveedorEnEdicionId, proveedor);
+                resultado = await supabaseClient
+                    .from("proveedores")
+                    .update(proveedor)
+                    .eq("codigo", proveedorEnEdicionId);
+            } else {
+                console.log("Insertando proveedor:", proveedor);
+                resultado = await supabaseClient
+                    .from("proveedores")
+                    .insert([proveedor]);
+            }
+
+            console.log("Resultado guardar proveedor:", resultado);
+
+            if (resultado.error) {
+                mostrarNotificacion("Error al guardar proveedor: " + resultado.error.message, "error");
+                return;
+            }
+
+            if (proveedorEnEdicionId !== null) {
+                mostrarNotificacion("Proveedor actualizado correctamente.", "success");
+            } else {
+                mostrarNotificacion("Proveedor registrado correctamente.", "success");
+            }
+
+            cancelarEdicionProveedor();
+            await cargarProveedores();
+        });
+    }
+
+    const proveedoresTableBody = document.getElementById("proveedoresTableBody");
+    if (proveedoresTableBody && !proveedoresTableBody.dataset.listenerAdjunto) {
+        proveedoresTableBody.dataset.listenerAdjunto = "true";
+        proveedoresTableBody.addEventListener("click", async (e) => {
+            const boton = e.target.closest("button[data-accion]");
+            if (!boton) return;
+
+            const rolActual = sessionStorage.getItem("rol");
+            if (rolActual !== "admin" && rolActual !== "encargado_proveedores") {
+                mostrarNotificacion("Permiso denegado: No tienes permisos para modificar proveedores.", "error");
+                return;
+            }
+
+            const codigo = boton.dataset.id;
+            const accion = boton.dataset.accion;
+
+            if (accion === "editar") {
+                console.log("Buscando proveedor para editar, codigo:", codigo);
+                const { data, error } = await supabaseClient
+                    .from("proveedores")
+                    .select("*")
+                    .eq("codigo", codigo)
+                    .single();
+
+                console.log("Resultado buscar proveedor:", data, "Error:", error);
+
+                if (error) {
+                    mostrarNotificacion("Error al buscar proveedor: " + error.message, "error");
+                    return;
+                }
+
+                proveedorEnEdicionId = codigo;
+                document.getElementById("empresa").value = data.empresa || "";
+                document.getElementById("encargado").value = data.encargado || "";
+                document.getElementById("telefono_prov").value = data.telefono || "";
+                document.getElementById("direccion_prov").value = data.direccion || "";
+                document.getElementById("correo").value = data.correo || "";
+
+                const titulo = document.getElementById("tituloProveedor");
+                if (titulo) titulo.textContent = "Editar proveedor";
+
+                const botonGuardar = document.getElementById("btnGuardarProveedor");
+                if (botonGuardar) {
+                    botonGuardar.innerHTML = `
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        <span>Actualizar proveedor</span>
+                    `;
+                    refrescarIconos();
+                }
+
+                const botonCancelar = document.getElementById("btnCancelarProveedor");
+                if (botonCancelar) botonCancelar.classList.remove("hidden");
+            }
+
+            if (accion === "eliminar") {
+                const confirmar = await mostrarConfirmacion("¿Estás seguro de eliminar este proveedor?");
+                if (!confirmar) return;
+
+                console.log("Eliminando proveedor codigo:", codigo);
+                const { error } = await supabaseClient
+                    .from("proveedores")
+                    .delete()
+                    .eq("codigo", codigo);
+
+                console.log("Resultado eliminar proveedor:", error);
+
+                if (error) {
+                    mostrarNotificacion("Error al eliminar proveedor: " + error.message, "error");
+                    return;
+                }
+
+                mostrarNotificacion("Proveedor eliminado correctamente.", "success");
+                await cargarProveedores();
+            }
+        });
+    }
+
+    const btnCancelarProveedor = document.getElementById("btnCancelarProveedor");
+    if (btnCancelarProveedor && !btnCancelarProveedor.dataset.listenerAdjunto) {
+        btnCancelarProveedor.dataset.listenerAdjunto = "true";
+        btnCancelarProveedor.addEventListener("click", cancelarEdicionProveedor);
+    }
+
+    // ----------------------------------------------------------------------
+    // 6. BUSCADOR EN CATÁLOGO PÚBLICO (index.html)
+    // ----------------------------------------------------------------------
+    const inputBusquedaCatalogo = document.getElementById("inputBusquedaCatalogo");
+    if (inputBusquedaCatalogo && !inputBusquedaCatalogo.dataset.listenerAdjunto) {
+        inputBusquedaCatalogo.dataset.listenerAdjunto = "true";
+        inputBusquedaCatalogo.addEventListener("input", (e) => {
+            filtrarCatalogoPublico(e.target.value);
+        });
+    }
 }
 
 /* ==========================================================================
-   PASO 10: EJECUCIÓN AUTOMÁTICA AL CARGAR CADA PÁGINA
+   PASO 10: INICIALIZACIÓN GENERAL DEL SISTEMA AL CARGAR LA PÁGINA
    ========================================================================== */
-document.addEventListener("DOMContentLoaded", () => {
+function inicializarSistema() {
     refrescarIconos();
+    inicializarFormulariosYEventos();
     configurarSidebarYHeader();
     aplicarPermisosInventario();
 
@@ -1493,4 +1617,10 @@ document.addEventListener("DOMContentLoaded", () => {
         cargarSelectEmpleados();
     }
     if (document.getElementById("proveedoresTableBody")) cargarProveedores();
-});
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", inicializarSistema);
+} else {
+    inicializarSistema();
+}

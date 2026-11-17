@@ -129,3 +129,11 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(236, 72, 153, 0.6);
 }
+
+/* Lucide Icons minimalistas */
+[data-lucide], svg.lucide {
+    stroke-width: 1.75px;
+    display: inline-block;
+    vertical-align: middle;
+}
+

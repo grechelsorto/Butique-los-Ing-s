@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar Sesión - Boutique Los Ing's</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -13,8 +14,8 @@
 
     <div class="w-full max-w-md">
         <div class="text-center mb-8">
-            <a href="index.html" class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500/25 to-violet-500/25 border border-pink-400/35 shadow-lg shadow-pink-500/15 mb-3">
-                <span class="text-2xl">👗</span>
+            <a href="index.html" class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500/25 to-violet-500/25 border border-pink-400/35 shadow-lg shadow-pink-500/15 mb-3 group hover:border-pink-400/60 transition">
+                <i data-lucide="sparkles" class="w-7 h-7 text-pink-400"></i>
             </a>
             <h1 class="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-300 via-fuchsia-400 to-violet-400 neon-title">
                 Boutique Los Ing's
@@ -25,7 +26,8 @@
         <section class="neon-card p-8 rounded-2xl">
             <div class="mb-6">
                 <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                    <span>🧥</span> Acceso a la Boutique
+                    <i data-lucide="shirt" class="w-5 h-5 text-pink-400"></i>
+                    <span>Acceso a la Boutique</span>
                 </h2>
                 <p class="text-xs text-slate-400 mt-1">Ingresa tus credenciales para gestionar el catálogo de ropa y el personal</p>
             </div>
@@ -58,17 +60,19 @@
                 </div>
 
                 <button type="submit" id="btnLogin" class="w-full text-white py-2.5 rounded-xl font-semibold neon-btn text-sm flex items-center justify-center gap-2">
-                    <span>👠</span>
+                    <i data-lucide="log-in" class="w-4 h-4"></i>
                     <span>Entrar al Panel de la Boutique</span>
                 </button>
             </form>
 
             <div class="mt-6 pt-5 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
                 <a href="index.html" class="hover:text-pink-400 transition flex items-center gap-1.5 font-medium">
-                    <span>←</span> Volver al Inicio
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                    <span>Volver al Inicio</span>
                 </a>
-                <a href="inventario.html" class="hover:text-fuchsia-400 transition font-medium">
-                    Ir al Catálogo de Prendas →
+                <a href="inventario.html" class="hover:text-fuchsia-400 transition flex items-center gap-1.5 font-medium">
+                    <span>Ir al Catálogo de Prendas</span>
+                    <i data-lucide="arrow-right" class="w-4 h-4"></i>
                 </a>
             </div>
         </section>
@@ -79,5 +83,8 @@
     </div>
 
     <script src="app.js"></script>
+    <script>
+        lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
+    </script>
 </body>
 </html>

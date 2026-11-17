@@ -9,7 +9,25 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let idProductoEditando = null;
 
 /* ==========================================================================
-   PASO 2: FUNCIÓN GLOBAL DE NOTIFICACIONES VISUALES NEÓN Y MODAL
+   PASO 2: UTILIDADES GLOBALES (ICONOS LUCIDE Y MONEDA)
+   ========================================================================== */
+function refrescarIconos() {
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons({
+            attrs: {
+                'stroke-width': 1.75
+            }
+        });
+    }
+}
+
+function formatearLempiras(monto) {
+    const numero = Number(monto) || 0;
+    return `L ${numero.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/* ==========================================================================
+   NOTIFICACIONES VISUALES NEÓN Y MODAL
    ========================================================================== */
 function mostrarNotificacion(mensaje, tipo = "success") {
     const notificacion = document.createElement("div");
@@ -18,10 +36,14 @@ function mostrarNotificacion(mensaje, tipo = "success") {
         ? "bg-slate-900/95 border-pink-400/50 text-pink-200 shadow-pink-500/20" 
         : "bg-slate-900/95 border-rose-500/50 text-rose-200 shadow-rose-500/20";
     
+    const iconoLucide = tipo === "success" ? "check-circle-2" : "alert-triangle";
+    const iconoColor = tipo === "success" ? "text-emerald-400" : "text-rose-400";
+    
     notificacion.className = `fixed bottom-5 right-5 z-50 px-4 py-3.5 rounded-2xl border shadow-2xl backdrop-blur-md text-sm font-medium transition-all duration-300 flex items-center gap-2.5 ${colorFondo}`;
-    notificacion.innerHTML = `<span class="text-base">${tipo === "success" ? "✨" : "⚠️"}</span> <span>${mensaje}</span>`;
+    notificacion.innerHTML = `<i data-lucide="${iconoLucide}" class="w-5 h-5 shrink-0 ${iconoColor}"></i> <span class="leading-snug">${mensaje}</span>`;
     
     document.body.appendChild(notificacion);
+    refrescarIconos();
 
     setTimeout(() => {
         notificacion.style.opacity = "0";
@@ -40,24 +62,26 @@ function mostrarConfirmacion(mensaje, textoConfirmar = null) {
             : (mensaje.toLowerCase().includes("eliminar") || mensaje.toLowerCase().includes("retirar"));
 
         const btnTexto = textoConfirmar || (esEliminar ? "Eliminar" : "Confirmar");
-        const btnIcono = esEliminar ? "🗑️" : "✨";
+        const btnIcono = esEliminar ? "trash-2" : "check";
+        const modalIcono = esEliminar ? "alert-triangle" : "sparkles";
         const btnClase = esEliminar 
             ? "bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30" 
             : "neon-btn text-white";
 
         overlay.innerHTML = `
             <div class="neon-card p-6 rounded-2xl max-w-sm w-full border border-pink-500/35 shadow-2xl space-y-4 text-center">
-                <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-500/15 border border-pink-500/35 flex items-center justify-center text-2xl">
-                    👗
+                <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-500/15 border border-pink-500/35 flex items-center justify-center text-pink-400">
+                    <i data-lucide="${modalIcono}" class="w-6 h-6"></i>
                 </div>
                 <h3 class="text-lg font-bold text-pink-400 neon-title">Confirmar acción</h3>
                 <p class="text-sm text-slate-300 leading-relaxed">${mensaje}</p>
                 <div class="flex gap-3 justify-center pt-2">
-                    <button id="btnModalCancelar" type="button" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white text-sm font-medium transition">
-                        Cancelar
+                    <button id="btnModalCancelar" type="button" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white text-sm font-medium transition flex items-center justify-center gap-1.5">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                        <span>Cancelar</span>
                     </button>
                     <button id="btnModalConfirmar" type="button" class="flex-1 py-2.5 px-4 rounded-xl border ${btnClase} text-sm font-semibold transition flex items-center justify-center gap-1.5 shadow-lg">
-                        <span>${btnIcono}</span>
+                        <i data-lucide="${btnIcono}" class="w-4 h-4"></i>
                         <span>${btnTexto}</span>
                     </button>
                 </div>
@@ -65,6 +89,7 @@ function mostrarConfirmacion(mensaje, textoConfirmar = null) {
         `;
 
         document.body.appendChild(overlay);
+        refrescarIconos();
 
         overlay.querySelector("#btnModalCancelar").addEventListener("click", () => {
             overlay.remove();
@@ -98,7 +123,7 @@ function actualizarResumenInventario(productos = []) {
 
     if (elTotal) elTotal.textContent = totalProductos;
     if (elStock) elStock.textContent = totalUnidades;
-    if (elValor) elValor.textContent = `L ${valorTotal.toFixed(2)}`;
+    if (elValor) elValor.textContent = formatearLempiras(valorTotal);
 }
 
 function actualizarResumenPersonal(listaPersonal = []) {
@@ -150,12 +175,13 @@ async function cargarInventario() {
         <tr>
             <td colspan="4" class="py-10 text-center text-slate-400">
                 <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-800/60 border border-pink-500/25 text-pink-300 text-xs font-medium">
-                    <span class="w-2 h-2 rounded-full bg-pink-400 animate-ping"></span>
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-pink-400"></i>
                     <span>Cargando catálogo de prendas desde Supabase...</span>
                 </div>
             </td>
         </tr>
     `;
+    refrescarIconos();
 
     const { data: productos, error } = await supabaseClient
         .from('productos')
@@ -165,7 +191,17 @@ async function cargarInventario() {
     if (error) {
         console.error("Error al cargar:", error);
         mostrarNotificacion("Error al cargar el catálogo: " + error.message, "error");
-        tableBody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-rose-400">⚠️ Error al cargar el catálogo de prendas.</td></tr>`;
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="4" class="py-8 text-center text-rose-400">
+                    <div class="inline-flex items-center gap-2">
+                        <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                        <span>Error al cargar el catálogo de prendas.</span>
+                    </div>
+                </td>
+            </tr>
+        `;
+        refrescarIconos();
         actualizarResumenInventario([]);
         return;
     }
@@ -176,14 +212,17 @@ async function cargarInventario() {
         tableBody.innerHTML = `
             <tr>
                 <td colspan="4" class="py-10 text-center text-slate-400">
-                    <div class="space-y-1">
-                        <p class="text-2xl">👗</p>
+                    <div class="space-y-2">
+                        <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
+                            <i data-lucide="package-open" class="w-6 h-6"></i>
+                        </div>
                         <p class="font-medium text-slate-300">No hay prendas registradas aún</p>
                         <p class="text-xs text-slate-500">Usa el formulario de la izquierda para agregar la primera prenda al catálogo.</p>
                     </div>
                 </td>
             </tr>
         `;
+        refrescarIconos();
         return;
     }
 
@@ -195,8 +234,8 @@ async function cargarInventario() {
         
         fila.innerHTML = `
             <td class="py-3.5 px-4 font-medium text-slate-100">
-                <div class="flex items-center gap-2">
-                    <span class="text-base">👚</span>
+                <div class="flex items-center gap-2.5">
+                    <i data-lucide="shirt" class="w-4 h-4 text-pink-400 shrink-0"></i>
                     <span>${escaparAtributo(producto.nombre)}</span>
                 </div>
             </td>
@@ -205,7 +244,7 @@ async function cargarInventario() {
                     ${producto.cantidad} en stock
                 </span>
             </td>
-            <td class="py-3.5 px-4 font-semibold text-pink-400 whitespace-nowrap">L ${Number(producto.precio).toFixed(2)}</td>
+            <td class="py-3.5 px-4 font-semibold text-pink-400 whitespace-nowrap">${formatearLempiras(producto.precio)}</td>
             <td class="py-3.5 px-4 text-center">
                 <div class="inline-flex items-center justify-center gap-2">
                     <button type="button"
@@ -214,14 +253,14 @@ async function cargarInventario() {
                             data-cantidad="${producto.cantidad}"
                             data-precio="${producto.precio}"
                             onclick="prepararEdicion(Number(this.dataset.id), this.dataset.nombre, Number(this.dataset.cantidad), Number(this.dataset.precio))" 
-                            class="inline-flex items-center gap-1 text-xs font-medium bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/35 px-2.5 py-1.5 rounded-lg hover:bg-fuchsia-500/25 hover:border-fuchsia-400/60 transition">
-                        <span>✏️</span>
+                            class="inline-flex items-center gap-1.5 text-xs font-medium bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/35 px-2.5 py-1.5 rounded-lg hover:bg-fuchsia-500/25 hover:border-fuchsia-400/60 transition">
+                        <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
                         <span>Editar</span>
                     </button>
                     <button type="button"
                             onclick="eliminarProducto(${producto.id})" 
-                            class="inline-flex items-center gap-1 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 hover:border-rose-400/50 transition">
-                        <span>🗑️</span>
+                            class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 hover:border-rose-400/50 transition">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         <span>Eliminar</span>
                     </button>
                 </div>
@@ -229,6 +268,8 @@ async function cargarInventario() {
         `;
         tableBody.appendChild(fila);
     });
+
+    refrescarIconos();
 }
 
 function cancelarEdicionProducto() {
@@ -237,7 +278,13 @@ function cancelarEdicionProducto() {
     idProductoEditando = null;
 
     const botonSubmit = document.querySelector("#productForm button[type='submit']");
-    if (botonSubmit) botonSubmit.textContent = "👗 Guardar Prenda";
+    if (botonSubmit) {
+        botonSubmit.innerHTML = `
+            <i data-lucide="check" class="w-4 h-4"></i>
+            <span>Guardar Prenda</span>
+        `;
+        refrescarIconos();
+    }
 
     const tituloForm = document.getElementById("formProductoTitulo");
     if (tituloForm) tituloForm.textContent = "Nueva Prenda";
@@ -325,7 +372,13 @@ function prepararEdicion(id, nombre, cantidad, precio) {
     document.getElementById("precio").value = precio;
 
     const botonSubmit = document.querySelector("#productForm button[type='submit']");
-    if (botonSubmit) botonSubmit.textContent = "🧥 Actualizar Prenda";
+    if (botonSubmit) {
+        botonSubmit.innerHTML = `
+            <i data-lucide="save" class="w-4 h-4"></i>
+            <span>Actualizar Prenda</span>
+        `;
+        refrescarIconos();
+    }
 
     const tituloForm = document.getElementById("formProductoTitulo");
     if (tituloForm) tituloForm.textContent = "Editar Prenda";
@@ -389,12 +442,13 @@ async function cargarPersonal() {
         <tr>
             <td colspan="6" class="py-10 text-center text-slate-400">
                 <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-800/60 border border-pink-500/25 text-pink-300 text-xs font-medium">
-                    <span class="w-2 h-2 rounded-full bg-pink-400 animate-ping"></span>
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-pink-400"></i>
                     <span>Cargando equipo de la boutique desde Supabase...</span>
                 </div>
             </td>
         </tr>
     `;
+    refrescarIconos();
 
     const { data: listaPersonal, error } = await supabaseClient
         .from('personal')
@@ -403,7 +457,17 @@ async function cargarPersonal() {
     if (error) {
         console.error("Error al cargar personal:", error);
         mostrarNotificacion("Error al cargar el equipo: " + error.message, "error");
-        tableBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-rose-400">⚠️ Error al cargar los datos del Equipo de la Boutique.</td></tr>`;
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="6" class="py-8 text-center text-rose-400">
+                    <div class="inline-flex items-center gap-2">
+                        <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                        <span>Error al cargar los datos del Equipo de la Boutique.</span>
+                    </div>
+                </td>
+            </tr>
+        `;
+        refrescarIconos();
         actualizarResumenPersonal([]);
         return;
     }
@@ -414,14 +478,17 @@ async function cargarPersonal() {
         tableBody.innerHTML = `
             <tr>
                 <td colspan="6" class="py-10 text-center text-slate-400">
-                    <div class="space-y-1">
-                        <p class="text-2xl">👠</p>
+                    <div class="space-y-2">
+                        <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
+                            <i data-lucide="user-x" class="w-6 h-6"></i>
+                        </div>
                         <p class="font-medium text-slate-300">No hay integrantes en el equipo aún</p>
                         <p class="text-xs text-slate-500">Completa el formulario para registrar al primer asesor o colaborador de la boutique.</p>
                     </div>
                 </td>
             </tr>
         `;
+        refrescarIconos();
         return;
     }
 
@@ -443,14 +510,16 @@ async function cargarPersonal() {
                 <button type="button"
                         data-identidad="${escaparAtributo(persona.identidad)}"
                         onclick="eliminarPersonal(this.dataset.identidad)"
-                        class="inline-flex items-center gap-1 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 hover:border-rose-400/50 transition">
-                    <span>🗑️</span>
+                        class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 hover:border-rose-400/50 transition">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                     <span>Eliminar</span>
                 </button>
             </td>
         `;
         tableBody.appendChild(fila);
     });
+
+    refrescarIconos();
 }
 
 async function eliminarPersonal(identidad) {
@@ -526,11 +595,17 @@ async function cargarProveedores() {
     if (!listaProveedores || listaProveedores.length === 0) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="7" class="py-4 text-center text-slate-500">
-                    No hay proveedores registrados.
+                <td colspan="7" class="py-8 text-center text-slate-400">
+                    <div class="space-y-2">
+                        <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
+                            <i data-lucide="truck" class="w-6 h-6"></i>
+                        </div>
+                        <p class="font-medium text-slate-300">No hay proveedores registrados aún.</p>
+                    </div>
                 </td>
             </tr>
         `;
+        refrescarIconos();
         return;
     }
 
@@ -553,23 +628,25 @@ async function cargarProveedores() {
             <td class="py-3 px-2 text-slate-400"></td>
             <td class="py-3 px-2 text-slate-400"></td>
 
-            <td class="py-3 px-2">
-                <div class="flex gap-2">
+            <td class="py-3 px-2 text-center">
+                <div class="inline-flex items-center justify-center gap-2">
 
                     <button
                         type="button"
                         data-accion="editar"
                         data-id="${prov.codigo}"
-                        class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded">
-                        Editar
+                        class="inline-flex items-center gap-1.5 text-xs font-medium bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/35 px-2.5 py-1.5 rounded-lg hover:bg-fuchsia-500/25 transition">
+                        <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                        <span>Editar</span>
                     </button>
 
                     <button
                         type="button"
                         data-accion="eliminar"
                         data-id="${prov.codigo}"
-                        class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded">
-                        Eliminar
+                        class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 transition">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        <span>Eliminar</span>
                     </button>
 
                 </div>
@@ -586,6 +663,8 @@ async function cargarProveedores() {
 
         tableBody.appendChild(fila);
     });
+
+    refrescarIconos();
 }
 
 
@@ -723,7 +802,11 @@ if (proveedoresTableBody) {
             );
 
             if (botonGuardar) {
-                botonGuardar.textContent = "Actualizar proveedor";
+                botonGuardar.innerHTML = `
+                    <i data-lucide="save" class="w-4 h-4"></i>
+                    <span>Actualizar proveedor</span>
+                `;
+                refrescarIconos();
             }
 
 
@@ -743,7 +826,7 @@ if (proveedoresTableBody) {
 
         if (accion === "eliminar") {
 
-            const confirmar = confirm(
+            const confirmar = await mostrarConfirmacion(
                 "¿Estás seguro de eliminar este proveedor?"
             );
 
@@ -797,7 +880,11 @@ function cancelarEdicionProveedor() {
     );
 
     if (botonGuardar) {
-        botonGuardar.textContent = "Guardar proveedor";
+        botonGuardar.innerHTML = `
+            <i data-lucide="check" class="w-4 h-4"></i>
+            <span>Registrar proveedor</span>
+        `;
+        refrescarIconos();
     }
 
     const botonCancelar = document.getElementById(
@@ -831,6 +918,7 @@ if (btnCancelarProveedor) {
    PASO 7: EJECUCIÓN AUTOMÁTICA AL CARGAR CADA PÁGINA
    ========================================================================== */
 document.addEventListener("DOMContentLoaded", () => {
+    refrescarIconos();
     if (document.getElementById("productTableBody")) cargarInventario();
     if (document.getElementById("personalTableBody")) cargarPersonal();
     if (document.getElementById("proveedoresTableBody")) cargarProveedores();

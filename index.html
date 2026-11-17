@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inicio - Boutique Los Ing's | Moda & Estilo</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="min-h-screen flex flex-col md:flex-row antialiased selection:bg-pink-500/30 selection:text-pink-200">
@@ -15,7 +16,7 @@
             <div class="flex items-center justify-between">
                 <a href="index.html" class="flex items-center gap-2.5 group">
                     <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-500/25 to-violet-500/25 border border-pink-400/35 flex items-center justify-center shadow-lg shadow-pink-500/10 group-hover:border-pink-400/60 transition">
-                        <span class="text-lg">👗</span>
+                        <i data-lucide="sparkles" class="w-5 h-5 text-pink-400"></i>
                     </div>
                     <div>
                         <h1 class="text-sm font-bold text-pink-400 tracking-wide neon-title">Boutique Los Ing's</h1>
@@ -24,13 +25,12 @@
                 </a>
 
                 <div class="flex items-center gap-2 md:hidden">
-                    <a href="login.html" class="text-xs font-semibold bg-pink-500/15 text-pink-300 border border-pink-500/35 px-2.5 py-1.5 rounded-lg hover:bg-pink-500/25 transition">
-                        Acceso
+                    <a href="login.html" class="text-xs font-semibold bg-pink-500/15 text-pink-300 border border-pink-500/35 px-2.5 py-1.5 rounded-lg hover:bg-pink-500/25 transition flex items-center gap-1.5">
+                        <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
+                        <span>Acceso</span>
                     </a>
                     <button type="button" onclick="document.getElementById('mobileMenu').classList.toggle('hidden')" aria-label="Abrir menú" class="p-2 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300 hover:text-pink-400 hover:border-pink-500/40 transition">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-                        </svg>
+                        <i data-lucide="menu" class="w-5 h-5"></i>
                     </button>
                 </div>
             </div>
@@ -38,19 +38,23 @@
             <nav id="mobileMenu" class="hidden md:block mt-6 space-y-1.5 text-sm">
                 <p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Boutique</p>
                 <a href="index.html" class="nav-link-active flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium transition">
-                    <span>👜</span>
+                    <i data-lucide="home" class="w-4 h-4 text-pink-400"></i>
                     <span>Inicio</span>
                 </a>
                 <a href="inventario.html" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
-                    <span>👗</span>
+                    <i data-lucide="shirt" class="w-4 h-4 text-pink-400"></i>
                     <span>Catálogo de Prendas</span>
                 </a>
                 <a href="personal.html" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
-                    <span>👠</span>
+                    <i data-lucide="users" class="w-4 h-4 text-pink-400"></i>
                     <span>Equipo de la Boutique</span>
                 </a>
+                <a href="proveedores.html" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
+                    <i data-lucide="truck" class="w-4 h-4 text-pink-400"></i>
+                    <span>Proveedores</span>
+                </a>
                 <a href="login.html" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
-                    <span>🔐</span>
+                    <i data-lucide="log-in" class="w-4 h-4 text-pink-400"></i>
                     <span>Iniciar Sesión</span>
                 </a>
             </nav>
@@ -69,15 +73,23 @@
     <main class="flex-1 p-6 md:p-10 flex items-center justify-center">
         <div class="max-w-2xl w-full neon-card p-8 md:p-12 rounded-3xl text-center space-y-6 relative overflow-hidden">
             <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-pink-500/15 border border-pink-400/30 text-pink-300 text-xs font-medium">
-                <span>✨</span>
+                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-pink-400"></i>
                 <span>Gestión de Moda y Estilo en la Nube</span>
             </div>
 
-            <div class="flex items-center justify-center gap-3 text-4xl md:text-5xl">
-                <span>👗</span>
-                <span>🧥</span>
-                <span>👠</span>
-                <span>👜</span>
+            <div class="flex items-center justify-center gap-4 text-pink-400">
+                <div class="w-12 h-12 rounded-2xl bg-pink-500/15 border border-pink-500/30 flex items-center justify-center text-pink-400 shadow-lg shadow-pink-500/10">
+                    <i data-lucide="shirt" class="w-6 h-6"></i>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-fuchsia-500/15 border border-fuchsia-500/30 flex items-center justify-center text-fuchsia-400 shadow-lg shadow-fuchsia-500/10">
+                    <i data-lucide="shopping-bag" class="w-6 h-6"></i>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400 shadow-lg shadow-violet-500/10">
+                    <i data-lucide="users" class="w-6 h-6"></i>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/10">
+                    <i data-lucide="truck" class="w-6 h-6"></i>
+                </div>
             </div>
 
             <h2 class="text-2xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-300 via-fuchsia-400 to-violet-400 neon-title leading-tight">
@@ -85,24 +97,32 @@
             </h2>
 
             <p class="text-slate-300 text-sm md:text-base leading-relaxed max-w-lg mx-auto">
-                Sistema exclusivo para la administración de nuestra tienda de ropa. Aquí nuestro personal gestiona el catálogo de prendas, tallas, precios y el equipo de trabajo de la boutique en tiempo real con Supabase.
+                Sistema exclusivo para la administración de nuestra tienda de ropa. Aquí nuestro personal gestiona el catálogo de prendas, existencias, precios y el equipo de trabajo de la boutique en tiempo real con Supabase.
             </p>
 
-            <div class="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <div class="pt-4 flex flex-wrap items-center justify-center gap-3">
                 <a href="login.html" class="w-full sm:w-auto px-6 py-3 rounded-xl font-semibold text-white text-sm neon-btn flex items-center justify-center gap-2">
-                    <span>🔐</span>
+                    <i data-lucide="log-in" class="w-4 h-4"></i>
                     <span>Acceso al Personal</span>
                 </a>
                 <a href="inventario.html" class="w-full sm:w-auto px-6 py-3 rounded-xl font-semibold text-slate-200 text-sm bg-slate-900/80 border border-pink-500/30 hover:border-pink-400/60 hover:text-pink-300 transition flex items-center justify-center gap-2">
-                    <span>👗</span>
+                    <i data-lucide="shirt" class="w-4 h-4"></i>
                     <span>Catálogo de Prendas</span>
                 </a>
                 <a href="personal.html" class="w-full sm:w-auto px-6 py-3 rounded-xl font-semibold text-slate-200 text-sm bg-slate-900/80 border border-violet-500/30 hover:border-violet-400/60 hover:text-violet-300 transition flex items-center justify-center gap-2">
-                    <span>👠</span>
+                    <i data-lucide="users" class="w-4 h-4"></i>
                     <span>Equipo de la Boutique</span>
+                </a>
+                <a href="proveedores.html" class="w-full sm:w-auto px-6 py-3 rounded-xl font-semibold text-slate-200 text-sm bg-slate-900/80 border border-cyan-500/30 hover:border-cyan-400/60 hover:text-cyan-300 transition flex items-center justify-center gap-2">
+                    <i data-lucide="truck" class="w-4 h-4"></i>
+                    <span>Proveedores</span>
                 </a>
             </div>
         </div>
     </main>
+
+    <script>
+        lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
+    </script>
 </body>
 </html>

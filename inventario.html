@@ -8,6 +8,10 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="style.css">
+    <script src="app.js"></script>
+    <script>
+        protegerPagina(["admin", "encargado_inventario", "encargado_proveedores", "asesor"]);
+    </script>
 </head>
 
 <body class="min-h-screen flex flex-col md:flex-row antialiased selection:bg-pink-500/30 selection:text-pink-200">
@@ -27,10 +31,10 @@
                 </a>
 
                 <div class="flex items-center gap-2 md:hidden">
-                    <a href="login.html" class="text-xs font-semibold bg-pink-500/15 text-pink-300 border border-pink-500/35 px-2.5 py-1.5 rounded-lg hover:bg-pink-500/25 transition flex items-center gap-1.5">
-                        <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
-                        <span>Acceso</span>
-                    </a>
+                    <button type="button" onclick="cerrarSesion()" class="text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/35 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/25 transition flex items-center gap-1">
+                        <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+                        <span>Salir</span>
+                    </button>
                     <button type="button" onclick="document.getElementById('mobileMenu').classList.toggle('hidden')" aria-label="Abrir menú" class="p-2 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300 hover:text-pink-400 hover:border-pink-500/40 transition">
                         <i data-lucide="menu" class="w-5 h-5"></i>
                     </button>
@@ -39,26 +43,29 @@
 
             <nav id="mobileMenu" class="hidden md:block mt-6 space-y-1.5 text-sm">
                 <p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Boutique</p>
-                <a href="index.html" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
+                <a href="index.html" id="linkNavInicio" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
                     <i data-lucide="home" class="w-4 h-4 text-pink-400"></i>
-                    <span>Inicio</span>
+                    <span>Inicio (Público)</span>
                 </a>
-                <a href="inventario.html" class="nav-link-active flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium transition">
+                <a href="inventario.html" id="linkNavInventario" class="nav-link-active flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium transition">
                     <i data-lucide="shirt" class="w-4 h-4 text-pink-400"></i>
                     <span>Catálogo de Prendas</span>
                 </a>
-                <a href="personal.html" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
+                <a href="personal.html" id="linkNavPersonal" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
                     <i data-lucide="users" class="w-4 h-4 text-pink-400"></i>
-                    <span>Equipo de la Boutique</span>
+                    <span>Equipo & Usuarios</span>
                 </a>
-                <a href="proveedores.html" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
+                <a href="proveedores.html" id="linkNavProveedores" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
                     <i data-lucide="truck" class="w-4 h-4 text-pink-400"></i>
                     <span>Proveedores</span>
                 </a>
-                <a href="login.html" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition md:hidden">
-                    <i data-lucide="log-in" class="w-4 h-4 text-pink-400"></i>
-                    <span>Iniciar Sesión</span>
-                </a>
+
+                <div class="pt-3 md:hidden border-t border-slate-800/80 space-y-1.5">
+                    <button type="button" onclick="cerrarSesion()" class="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-rose-300 hover:bg-rose-500/10 transition">
+                        <i data-lucide="log-out" class="w-4 h-4 text-rose-400"></i>
+                        <span>Cerrar Sesión</span>
+                    </button>
+                </div>
             </nav>
         </div>
 
@@ -73,19 +80,27 @@
 
     <!-- Contenedor Principal del Panel -->
     <div class="flex-1 flex flex-col min-h-screen min-w-0">
+        <!-- Encabezado con información del usuario conectado y botón Cerrar Sesión -->
         <header class="bg-slate-900/75 backdrop-blur-md border-b border-pink-500/20 px-4 md:px-6 py-3.5 flex justify-between items-center sticky top-0 z-20">
             <div>
                 <h2 class="text-sm md:text-base font-bold text-slate-100 flex items-center gap-2">
                     <i data-lucide="shirt" class="w-5 h-5 text-pink-400"></i>
                     <span>Catálogo de Prendas</span>
                 </h2>
-                <p class="text-[11px] text-slate-400">Nuestro personal gestiona las prendas, tallas, existencias y precios de la boutique</p>
+                <p class="text-[11px] text-slate-400">Gestión de prendas, existencias, tallas y precios de la boutique</p>
             </div>
             <div class="flex items-center gap-3">
-                <a href="login.html" class="hidden md:inline-flex items-center gap-1.5 text-xs font-medium bg-pink-500/15 text-pink-300 border border-pink-500/35 px-3.5 py-2 rounded-xl hover:bg-pink-500/25 hover:border-pink-400/60 transition">
-                    <i data-lucide="log-in" class="w-4 h-4"></i>
-                    <span>Iniciar Sesión</span>
-                </a>
+                <div class="hidden sm:flex flex-col text-right">
+                    <span id="headerUsuarioNombre" class="text-xs font-semibold text-slate-200">Usuario</span>
+                    <span id="headerUsuarioRol" class="text-[10px] text-pink-400 font-medium">Rol</span>
+                </div>
+                <div class="w-8 h-8 rounded-xl bg-pink-500/20 border border-pink-400/40 flex items-center justify-center text-pink-300">
+                    <i data-lucide="user" class="w-4 h-4"></i>
+                </div>
+                <button type="button" onclick="cerrarSesion()" title="Cerrar sesión" class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-3 py-2 rounded-xl hover:bg-rose-500/20 hover:border-rose-400/50 transition">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                    <span class="hidden md:inline">Cerrar Sesión</span>
+                </button>
             </div>
         </header>
 
@@ -126,11 +141,11 @@
                 </div>
             </section>
 
-            <!-- Grid Principal: Formulario (1 col) + Tabla (2 cols) -->
+            <!-- Grid Principal: Formulario (1 col) + Tabla (2 cols, o 3 cols en solo lectura) -->
             <main class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                 
-                <!-- Columna del Formulario -->
-                <section class="neon-card p-6 rounded-2xl lg:col-span-1">
+                <!-- Columna del Formulario (se oculta automáticamente en roles de solo lectura) -->
+                <section id="columnaFormularioInventario" class="neon-card p-6 rounded-2xl lg:col-span-1">
                     <div class="flex items-center justify-between mb-5 pb-3 border-b border-slate-800/80">
                         <div>
                             <h2 id="formProductoTitulo" class="text-base font-bold text-pink-400 neon-title">Nueva Prenda</h2>
@@ -181,12 +196,25 @@
                 </section>
 
                 <!-- Columna de la Tabla -->
-                <section class="neon-card p-6 rounded-2xl lg:col-span-2 overflow-hidden">
+                <section id="columnaTablaInventario" class="neon-card p-6 rounded-2xl lg:col-span-2 overflow-hidden">
+                    <!-- Banner de Modo Solo Lectura (visible para asesor y encargado_proveedores) -->
+                    <div id="bannerSoloLecturaInventario" class="hidden mb-5 p-3.5 rounded-xl bg-violet-500/10 border border-violet-500/30 text-violet-200 text-xs flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-2.5">
+                            <i data-lucide="eye" class="w-4 h-4 text-violet-400 shrink-0"></i>
+                            <span><strong>Modo Solo Lectura:</strong> Tu rol te permite consultar existencias y precios del catálogo de prendas.</span>
+                        </div>
+                        <span class="px-2.5 py-0.5 rounded-full bg-violet-500/20 text-[11px] font-semibold border border-violet-500/40 text-violet-200 shrink-0">Lectura</span>
+                    </div>
+
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5 pb-3 border-b border-slate-800/80">
                         <div>
                             <h2 class="text-base font-bold text-pink-400 neon-title">Catálogo de Prendas</h2>
                             <p class="text-xs text-slate-400 mt-0.5">Colección disponible en <span class="text-pink-300 font-medium">Boutique Los Ing's</span></p>
                         </div>
+                        <button type="button" onclick="cargarInventario()" class="px-3 py-1.5 rounded-lg border border-pink-500/35 text-pink-300 text-xs hover:bg-pink-500/10 flex items-center gap-1.5 transition self-start sm:self-auto">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                            <span>Actualizar</span>
+                        </button>
                     </div>
 
                     <div class="overflow-x-auto max-h-[520px] rounded-xl border border-slate-800/80">
@@ -196,7 +224,7 @@
                                     <th class="py-3.5 px-4">Prenda / Modelo</th>
                                     <th class="py-3.5 px-4">Unidades en stock</th>
                                     <th class="py-3.5 px-4">Precio (L)</th>
-                                    <th class="py-3.5 px-4 text-center">Acciones</th>
+                                    <th id="thAccionesInventario" class="py-3.5 px-4 text-center">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="productTableBody" class="divide-y divide-slate-800/60 text-sm">
@@ -217,8 +245,6 @@
         </div>
     </div>
 
-    <!-- Archivo JavaScript externo -->
-    <script src="app.js"></script>
     <script>
         lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
     </script>

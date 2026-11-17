@@ -4,11 +4,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Equipo de la Boutique | Boutique Los Ing's</title>
+    <title>Equipo & Usuarios | Boutique Los Ing's</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="style.css">
+    <script src="app.js"></script>
+    <script>
+        protegerPagina(["admin"]);
+    </script>
 </head>
 
 <body class="min-h-screen flex flex-col md:flex-row antialiased selection:bg-pink-500/30 selection:text-pink-200">
@@ -28,10 +32,10 @@
                 </a>
 
                 <div class="flex items-center gap-2 md:hidden">
-                    <a href="login.html" class="text-xs font-semibold bg-pink-500/15 text-pink-300 border border-pink-500/35 px-2.5 py-1.5 rounded-lg hover:bg-pink-500/25 transition flex items-center gap-1.5">
-                        <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
-                        <span>Acceso</span>
-                    </a>
+                    <button type="button" onclick="cerrarSesion()" class="text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/35 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/25 transition flex items-center gap-1">
+                        <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+                        <span>Salir</span>
+                    </button>
                     <button type="button" onclick="document.getElementById('mobileMenu').classList.toggle('hidden')" aria-label="Abrir menú" class="p-2 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300 hover:text-pink-400 hover:border-pink-500/40 transition">
                         <i data-lucide="menu" class="w-5 h-5"></i>
                     </button>
@@ -40,27 +44,29 @@
 
             <nav id="mobileMenu" class="hidden md:block mt-6 space-y-1.5 text-sm">
                 <p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Boutique</p>
-                <a href="index.html" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
+                <a href="index.html" id="linkNavInicio" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
                     <i data-lucide="home" class="w-4 h-4 text-pink-400"></i>
-                    <span>Inicio</span>
+                    <span>Inicio (Público)</span>
                 </a>
-                <a href="inventario.html" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
+                <a href="inventario.html" id="linkNavInventario" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
                     <i data-lucide="shirt" class="w-4 h-4 text-pink-400"></i>
                     <span>Catálogo de Prendas</span>
                 </a>
-                <a href="personal.html"
-                    class="nav-link-active flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium transition">
+                <a href="personal.html" id="linkNavPersonal" class="nav-link-active flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium transition">
                     <i data-lucide="users" class="w-4 h-4 text-pink-400"></i>
-                    <span>Equipo de la Boutique</span>
+                    <span>Equipo & Usuarios</span>
                 </a>
-                <a href="proveedores.html" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
+                <a href="proveedores.html" id="linkNavProveedores" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition">
                     <i data-lucide="truck" class="w-4 h-4 text-pink-400"></i>
                     <span>Proveedores</span>
                 </a>
-                <a href="login.html" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-pink-500/10 hover:text-pink-200 transition md:hidden">
-                    <i data-lucide="log-in" class="w-4 h-4 text-pink-400"></i>
-                    <span>Iniciar Sesión</span>
-                </a>
+
+                <div class="pt-3 md:hidden border-t border-slate-800/80 space-y-1.5">
+                    <button type="button" onclick="cerrarSesion()" class="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-rose-300 hover:bg-rose-500/10 transition">
+                        <i data-lucide="log-out" class="w-4 h-4 text-rose-400"></i>
+                        <span>Cerrar Sesión</span>
+                    </button>
+                </div>
             </nav>
         </div>
 
@@ -79,19 +85,26 @@
             <div>
                 <h2 class="text-sm md:text-base font-bold text-slate-100 flex items-center gap-2">
                     <i data-lucide="users" class="w-5 h-5 text-pink-400"></i>
-                    <span>Equipo de la Boutique</span>
+                    <span>Equipo & Usuarios del Sistema</span>
                 </h2>
-                <p class="text-[11px] text-slate-400">Asesores de moda y colaboradores encargados de gestionar prendas y atención al cliente</p>
+                <p class="text-[11px] text-slate-400">Panel exclusivo de Administrador para gestionar colaboradores y cuentas de acceso</p>
             </div>
             <div class="flex items-center gap-3">
-                <a href="login.html" class="hidden md:inline-flex items-center gap-1.5 text-xs font-medium bg-pink-500/15 text-pink-300 border border-pink-500/35 px-3.5 py-2 rounded-xl hover:bg-pink-500/25 hover:border-pink-400/60 transition">
-                    <i data-lucide="log-in" class="w-4 h-4"></i>
-                    <span>Iniciar Sesión</span>
-                </a>
+                <div class="hidden sm:flex flex-col text-right">
+                    <span id="headerUsuarioNombre" class="text-xs font-semibold text-slate-200">Administrador</span>
+                    <span id="headerUsuarioRol" class="text-[10px] text-pink-400 font-medium">Administrador</span>
+                </div>
+                <div class="w-8 h-8 rounded-xl bg-pink-500/20 border border-pink-400/40 flex items-center justify-center text-pink-300">
+                    <i data-lucide="shield" class="w-4 h-4"></i>
+                </div>
+                <button type="button" onclick="cerrarSesion()" title="Cerrar sesión" class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-3 py-2 rounded-xl hover:bg-rose-500/20 hover:border-rose-400/50 transition">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                    <span class="hidden md:inline">Cerrar Sesión</span>
+                </button>
             </div>
         </header>
 
-        <div class="flex-1 p-4 md:p-6 space-y-6">
+        <div class="flex-1 p-4 md:p-6 space-y-8">
             <!-- Tarjetas de Resumen de Personal -->
             <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div class="stat-card-magenta p-4 rounded-2xl flex items-center justify-between">
@@ -128,111 +141,237 @@
                 </div>
             </section>
 
-            <!-- Grid Principal: Formulario (1 col) + Tabla (2 cols) -->
-            <main class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-
-                <!-- Columna del Formulario -->
-                <section class="neon-card p-6 rounded-2xl lg:col-span-1">
-                    <div class="flex items-center justify-between mb-5 pb-3 border-b border-slate-800/80">
-                        <div>
-                            <h2 class="text-base font-bold text-pink-400 neon-title">Registrar Colaborador</h2>
-                            <p class="text-xs text-slate-400 mt-0.5">Alta en el Equipo de la Boutique</p>
-                        </div>
-                        <div class="w-8 h-8 rounded-lg bg-pink-500/15 border border-pink-500/30 flex items-center justify-center text-pink-400">
-                            <i data-lucide="user-plus" class="w-4 h-4"></i>
-                        </div>
+            <!-- SECCIÓN 1: EQUIPO DE LA BOUTIQUE (PERSONAL) -->
+            <section class="space-y-4">
+                <div class="flex items-center gap-2 pb-2 border-b border-pink-500/20">
+                    <div class="w-8 h-8 rounded-lg bg-pink-500/15 border border-pink-500/30 flex items-center justify-center text-pink-400">
+                        <i data-lucide="users" class="w-4 h-4"></i>
                     </div>
+                    <div>
+                        <h3 class="text-base font-bold text-pink-400 neon-title">Colaboradores de la Boutique</h3>
+                        <p class="text-xs text-slate-400">Registro de empleados físicos en la tabla <code class="text-pink-300 font-mono">personal</code></p>
+                    </div>
+                </div>
 
-                    <form id="personalForm" class="space-y-4">
-                        <div>
-                            <label for="identidad" class="block text-xs font-semibold uppercase tracking-wider text-pink-200/80 mb-1.5">
-                                Identidad (Clave Primaria)
-                            </label>
-                            <input type="text" id="identidad" placeholder="0801-1999-12345" required
-                                class="w-full p-2.5 rounded-xl neon-input text-sm">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                    <!-- Formulario de Colaborador -->
+                    <section class="neon-card p-6 rounded-2xl lg:col-span-1">
+                        <div class="flex items-center justify-between mb-5 pb-3 border-b border-slate-800/80">
+                            <div>
+                                <h4 class="text-sm font-bold text-pink-400 neon-title">Registrar Colaborador</h4>
+                                <p class="text-xs text-slate-400 mt-0.5">Alta en el Equipo de la Boutique</p>
+                            </div>
+                            <div class="w-7 h-7 rounded-lg bg-pink-500/15 border border-pink-500/30 flex items-center justify-center text-pink-400">
+                                <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+                            </div>
                         </div>
-                        <div>
-                            <label for="nombres_apellidos" class="block text-xs font-semibold uppercase tracking-wider text-pink-200/80 mb-1.5">
-                                Nombres y Apellidos
-                            </label>
-                            <input type="text" id="nombres_apellidos" placeholder="Ej: Valeria Mendoza" required class="w-full p-2.5 rounded-xl neon-input text-sm">
-                        </div>
-                        <div>
-                            <label for="genero" class="block text-xs font-semibold uppercase tracking-wider text-pink-200/80 mb-1.5">
-                                Género
-                            </label>
-                            <select id="genero" required class="w-full p-2.5 rounded-xl neon-input text-sm">
-                                <option value="" disabled selected>Seleccione una opción</option>
-                                <option value="Masculino">Masculino</option>
-                                <option value="Femenino">Femenino</option>
-                                <option value="Otro">Otro</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="telefono" class="block text-xs font-semibold uppercase tracking-wider text-pink-200/80 mb-1.5">
-                                Teléfono de Contacto
-                            </label>
-                            <input type="tel" id="telefono" placeholder="9999-9999" required
-                                class="w-full p-2.5 rounded-xl neon-input text-sm">
-                        </div>
-                        <div>
-                            <label for="direccion" class="block text-xs font-semibold uppercase tracking-wider text-pink-200/80 mb-1.5">
-                                Dirección / Sucursal
-                            </label>
-                            <input type="text" id="direccion" placeholder="Col. Palmira, Distrito Moda" required class="w-full p-2.5 rounded-xl neon-input text-sm">
-                        </div>
-                        <div class="pt-2">
-                            <button type="submit"
-                                class="w-full text-white py-2.5 px-4 rounded-xl font-semibold neon-btn text-sm shadow-lg flex items-center justify-center gap-2">
-                                <i data-lucide="user-plus" class="w-4 h-4"></i>
-                                <span>Registrar en el Equipo</span>
+
+                        <form id="personalForm" class="space-y-4">
+                            <div>
+                                <label for="identidad" class="block text-xs font-semibold uppercase tracking-wider text-pink-200/80 mb-1.5">
+                                    Identidad (Clave Primaria)
+                                </label>
+                                <input type="text" id="identidad" placeholder="0801-1999-12345" required
+                                    class="w-full p-2.5 rounded-xl neon-input text-sm">
+                            </div>
+                            <div>
+                                <label for="nombres_apellidos" class="block text-xs font-semibold uppercase tracking-wider text-pink-200/80 mb-1.5">
+                                    Nombres y Apellidos
+                                </label>
+                                <input type="text" id="nombres_apellidos" placeholder="Ej: Valeria Mendoza" required class="w-full p-2.5 rounded-xl neon-input text-sm">
+                            </div>
+                            <div>
+                                <label for="genero" class="block text-xs font-semibold uppercase tracking-wider text-pink-200/80 mb-1.5">
+                                    Género
+                                </label>
+                                <select id="genero" required class="w-full p-2.5 rounded-xl neon-input text-sm">
+                                    <option value="" disabled selected>Seleccione una opción</option>
+                                    <option value="Masculino">Masculino</option>
+                                    <option value="Femenino">Femenino</option>
+                                    <option value="Otro">Otro</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="telefono" class="block text-xs font-semibold uppercase tracking-wider text-pink-200/80 mb-1.5">
+                                    Teléfono de Contacto
+                                </label>
+                                <input type="tel" id="telefono" placeholder="9999-9999" required
+                                    class="w-full p-2.5 rounded-xl neon-input text-sm">
+                            </div>
+                            <div>
+                                <label for="direccion" class="block text-xs font-semibold uppercase tracking-wider text-pink-200/80 mb-1.5">
+                                    Dirección / Sucursal
+                                </label>
+                                <input type="text" id="direccion" placeholder="Col. Palmira, Distrito Moda" required class="w-full p-2.5 rounded-xl neon-input text-sm">
+                            </div>
+                            <div class="pt-2">
+                                <button type="submit"
+                                    class="w-full text-white py-2.5 px-4 rounded-xl font-semibold neon-btn text-sm shadow-lg flex items-center justify-center gap-2">
+                                    <i data-lucide="user-plus" class="w-4 h-4"></i>
+                                    <span>Registrar Colaborador</span>
+                                </button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <!-- Tabla de Colaboradores -->
+                    <section class="neon-card p-6 rounded-2xl lg:col-span-2 overflow-hidden">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5 pb-3 border-b border-slate-800/80">
+                            <div>
+                                <h4 class="text-sm font-bold text-pink-400 neon-title">Equipo de la Boutique</h4>
+                                <p class="text-xs text-slate-400 mt-0.5">Colaboradores registrados en <span class="text-pink-300 font-medium">Boutique Los Ing's</span></p>
+                            </div>
+                            <button type="button" onclick="cargarPersonal()" class="px-3 py-1.5 rounded-lg border border-pink-500/35 text-pink-300 text-xs hover:bg-pink-500/10 flex items-center gap-1.5 transition self-start sm:self-auto">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                                <span>Actualizar</span>
                             </button>
                         </div>
-                    </form>
-                </section>
 
-                <!-- Columna de la Tabla -->
-                <section class="neon-card p-6 rounded-2xl lg:col-span-2 overflow-hidden">
-                    <div
-                        class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5 pb-3 border-b border-slate-800/80">
-                        <div>
-                            <h2 class="text-base font-bold text-pink-400 neon-title">Equipo de la Boutique</h2>
-                            <p class="text-xs text-slate-400 mt-0.5">Personal encargado de prendas y ventas en <span class="text-pink-300 font-medium">Boutique Los Ing's</span></p>
+                        <div class="overflow-x-auto max-h-[420px] rounded-xl border border-slate-800/80">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-slate-900/95 sticky top-0 z-10 backdrop-blur">
+                                    <tr class="border-b border-slate-800 text-pink-200/70 text-xs font-semibold uppercase tracking-wider">
+                                        <th class="py-3.5 px-4">Identidad</th>
+                                        <th class="py-3.5 px-4">Nombres y Apellidos</th>
+                                        <th class="py-3.5 px-4">Género</th>
+                                        <th class="py-3.5 px-4">Teléfono</th>
+                                        <th class="py-3.5 px-4">Dirección</th>
+                                        <th class="py-3.5 px-4 text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="personalTableBody" class="divide-y divide-slate-800/60 text-sm">
+                                    <tr>
+                                        <td colspan="6" class="py-8 text-center text-slate-400">
+                                            <div class="inline-flex items-center gap-2">
+                                                <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-pink-400"></i>
+                                                <span>Cargando equipo de la boutique...</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
-                    </div>
+                    </section>
+                </div>
+            </section>
 
-                    <div class="overflow-x-auto max-h-[520px] rounded-xl border border-slate-800/80">
-                        <table class="w-full text-left border-collapse">
-                            <thead class="bg-slate-900/95 sticky top-0 z-10 backdrop-blur">
-                                <tr class="border-b border-slate-800 text-pink-200/70 text-xs font-semibold uppercase tracking-wider">
-                                    <th class="py-3.5 px-4">Identidad</th>
-                                    <th class="py-3.5 px-4">Nombres y Apellidos</th>
-                                    <th class="py-3.5 px-4">Género</th>
-                                    <th class="py-3.5 px-4">Teléfono</th>
-                                    <th class="py-3.5 px-4">Dirección</th>
-                                    <th class="py-3.5 px-4 text-center">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody id="personalTableBody" class="divide-y divide-slate-800/60 text-sm">
-                                <tr>
-                                    <td colspan="6" class="py-8 text-center text-slate-400">
-                                        <div class="inline-flex items-center gap-2">
-                                            <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-pink-400"></i>
-                                            <span>Cargando equipo de la boutique...</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+            <!-- SECCIÓN 2: CUENTAS DE USUARIOS DEL SISTEMA (LOGIN RBAC) -->
+            <section class="space-y-4 pt-4 border-t border-slate-800/80">
+                <div class="flex items-center gap-2 pb-2 border-b border-pink-500/20">
+                    <div class="w-8 h-8 rounded-lg bg-pink-500/15 border border-pink-500/30 flex items-center justify-center text-pink-400">
+                        <i data-lucide="shield" class="w-4 h-4"></i>
                     </div>
-                </section>
+                    <div>
+                        <h3 class="text-base font-bold text-pink-400 neon-title">Cuentas de Acceso (Usuarios del Sistema)</h3>
+                        <p class="text-xs text-slate-400">Administración de credenciales y roles en la tabla <code class="text-pink-300 font-mono">usuarios</code></p>
+                    </div>
+                </div>
 
-            </main>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                    <!-- Formulario de Nuevo Usuario -->
+                    <section class="neon-card p-6 rounded-2xl lg:col-span-1">
+                        <div class="flex items-center justify-between mb-5 pb-3 border-b border-slate-800/80">
+                            <div>
+                                <h4 class="text-sm font-bold text-pink-400 neon-title">Crear Cuenta de Usuario</h4>
+                                <p class="text-xs text-slate-400 mt-0.5">Asigna acceso y rol a un colaborador</p>
+                            </div>
+                            <div class="w-7 h-7 rounded-lg bg-pink-500/15 border border-pink-500/30 flex items-center justify-center text-pink-400">
+                                <i data-lucide="key" class="w-3.5 h-3.5"></i>
+                            </div>
+                        </div>
+
+                        <form id="usuarioForm" class="space-y-4">
+                            <div>
+                                <label for="nuevoUsuario" class="block text-xs font-semibold uppercase tracking-wider text-pink-200/80 mb-1.5">
+                                    Nombre de Usuario (Login) *
+                                </label>
+                                <input type="text" id="nuevoUsuario" placeholder="ej. valeria.asesora" required
+                                    class="w-full p-2.5 rounded-xl neon-input text-sm">
+                            </div>
+
+                            <div>
+                                <label for="nuevoPassword" class="block text-xs font-semibold uppercase tracking-wider text-pink-200/80 mb-1.5">
+                                    Contraseña *
+                                </label>
+                                <input type="password" id="nuevoPassword" placeholder="••••••••" required
+                                    class="w-full p-2.5 rounded-xl neon-input text-sm">
+                            </div>
+
+                            <div>
+                                <label for="nuevoRol" class="block text-xs font-semibold uppercase tracking-wider text-pink-200/80 mb-1.5">
+                                    Rol Asignado *
+                                </label>
+                                <select id="nuevoRol" required class="w-full p-2.5 rounded-xl neon-input text-sm">
+                                    <option value="" disabled selected>Seleccione un rol</option>
+                                    <option value="admin">Administrador (Acceso total)</option>
+                                    <option value="encargado_inventario">Encargado de Inventario (CRUD Catálogo)</option>
+                                    <option value="encargado_proveedores">Encargado de Proveedores (CRUD Proveedores, Catálogo lectura)</option>
+                                    <option value="asesor">Asesor de Moda (Catálogo solo lectura)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label for="nuevoEmpleadoIdentidad" class="block text-xs font-semibold uppercase tracking-wider text-pink-200/80 mb-1.5">
+                                    Colaborador / Empleado Vinculado
+                                </label>
+                                <select id="nuevoEmpleadoIdentidad" class="w-full p-2.5 rounded-xl neon-input text-sm">
+                                    <option value="">-- Sin vincular a colaborador --</option>
+                                </select>
+                                <p class="text-[11px] text-slate-500 mt-1">Vincula esta cuenta con el registro de la persona en el equipo.</p>
+                            </div>
+
+                            <div class="pt-2">
+                                <button type="submit" id="btnCrearUsuario"
+                                    class="w-full text-white py-2.5 px-4 rounded-xl font-semibold neon-btn text-sm shadow-lg flex items-center justify-center gap-2">
+                                    <i data-lucide="shield-check" class="w-4 h-4"></i>
+                                    <span>Crear Cuenta de Usuario</span>
+                                </button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <!-- Tabla de Cuentas de Usuario -->
+                    <section class="neon-card p-6 rounded-2xl lg:col-span-2 overflow-hidden">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5 pb-3 border-b border-slate-800/80">
+                            <div>
+                                <h4 class="text-sm font-bold text-pink-400 neon-title">Cuentas Registradas</h4>
+                                <p class="text-xs text-slate-400 mt-0.5">Usuarios autorizados para acceder al sistema</p>
+                            </div>
+                            <button type="button" onclick="cargarUsuarios(); cargarSelectEmpleados();" class="px-3 py-1.5 rounded-lg border border-pink-500/35 text-pink-300 text-xs hover:bg-pink-500/10 flex items-center gap-1.5 transition self-start sm:self-auto">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                                <span>Actualizar</span>
+                            </button>
+                        </div>
+
+                        <div class="overflow-x-auto max-h-[420px] rounded-xl border border-slate-800/80">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-slate-900/95 sticky top-0 z-10 backdrop-blur">
+                                    <tr class="border-b border-slate-800 text-pink-200/70 text-xs font-semibold uppercase tracking-wider">
+                                        <th class="py-3.5 px-4">Usuario</th>
+                                        <th class="py-3.5 px-4">Rol en Sistema</th>
+                                        <th class="py-3.5 px-4">Colaborador Vinculado</th>
+                                        <th class="py-3.5 px-4 text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usuariosTableBody" class="divide-y divide-slate-800/60 text-sm">
+                                    <tr>
+                                        <td colspan="4" class="py-8 text-center text-slate-400">
+                                            <div class="inline-flex items-center gap-2">
+                                                <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-pink-400"></i>
+                                                <span>Cargando cuentas de usuarios...</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+            </section>
+
         </div>
     </div>
 
-    <!-- Archivo JavaScript externo -->
-    <script src="app.js"></script>
     <script>
         lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
     </script>

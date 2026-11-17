@@ -30,10 +30,20 @@ function mostrarNotificacion(mensaje, tipo = "success") {
     }, 3000);
 }
 
-function mostrarConfirmacion(mensaje) {
+function mostrarConfirmacion(mensaje, textoConfirmar = null) {
     return new Promise((resolve) => {
         const overlay = document.createElement("div");
         overlay.className = "fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4";
+
+        const esEliminar = textoConfirmar 
+            ? textoConfirmar.toLowerCase().includes("eliminar")
+            : (mensaje.toLowerCase().includes("eliminar") || mensaje.toLowerCase().includes("retirar"));
+
+        const btnTexto = textoConfirmar || (esEliminar ? "Eliminar" : "Confirmar");
+        const btnIcono = esEliminar ? "🗑️" : "✨";
+        const btnClase = esEliminar 
+            ? "bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30" 
+            : "neon-btn text-white";
 
         overlay.innerHTML = `
             <div class="neon-card p-6 rounded-2xl max-w-sm w-full border border-pink-500/35 shadow-2xl space-y-4 text-center">
@@ -46,9 +56,9 @@ function mostrarConfirmacion(mensaje) {
                     <button id="btnModalCancelar" type="button" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white text-sm font-medium transition">
                         Cancelar
                     </button>
-                    <button id="btnModalConfirmar" type="button" class="flex-1 py-2.5 px-4 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 text-sm font-semibold transition flex items-center justify-center gap-1.5">
-                        <span>🗑️</span>
-                        <span>Eliminar</span>
+                    <button id="btnModalConfirmar" type="button" class="flex-1 py-2.5 px-4 rounded-xl border ${btnClase} text-sm font-semibold transition flex items-center justify-center gap-1.5 shadow-lg">
+                        <span>${btnIcono}</span>
+                        <span>${btnTexto}</span>
                     </button>
                 </div>
             </div>
@@ -324,6 +334,48 @@ function prepararEdicion(id, nombre, cantidad, precio) {
     if (btnCancelar) btnCancelar.classList.remove("hidden");
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ==========================================================================
+   CARGAR PRODUCTOS DE EJEMPLO DE LA BOUTIQUE
+   ========================================================================== */
+async function cargarProductosEjemplo() {
+    const confirmado = await mostrarConfirmacion("¿Cargar 15 productos de ejemplo de la boutique?");
+    if (!confirmado) return;
+
+    const productosEjemplo = [
+        { nombre: "Vestido de noche satinado - S", cantidad: 8, precio: 1250.00 },
+        { nombre: "Vestido casual midi floral - M", cantidad: 14, precio: 780.00 },
+        { nombre: "Blusa floral de seda - M", cantidad: 20, precio: 450.00 },
+        { nombre: "Camisa clásica blanca ejecutiva - L", cantidad: 15, precio: 520.00 },
+        { nombre: "Jeans corte acampanado vintage - 28", cantidad: 18, precio: 690.00 },
+        { nombre: "Jeans skinny tiro alto - 30", cantidad: 22, precio: 650.00 },
+        { nombre: "Falda plisada elegante - S", cantidad: 12, precio: 490.00 },
+        { nombre: "Chaqueta biker cuero sintético - M", cantidad: 9, precio: 1100.00 },
+        { nombre: "Abrigo de paño invernal - L", cantidad: 6, precio: 1650.00 },
+        { nombre: "Tacones stiletto charol negro - 37", cantidad: 10, precio: 890.00 },
+        { nombre: "Sandalias de plataforma doradas - 38", cantidad: 12, precio: 580.00 },
+        { nombre: "Bolso tote de cuero para dama - Única", cantidad: 7, precio: 950.00 },
+        { nombre: "Bolso bandolera acolchado rosa - Única", cantidad: 11, precio: 720.00 },
+        { nombre: "Cinturón de cuero con hebilla dorada - Única", cantidad: 25, precio: 280.00 },
+        { nombre: "Bufanda de cachemira estampada - Única", cantidad: 16, precio: 320.00 }
+    ];
+
+    const { error } = await supabaseClient
+        .from('productos')
+        .insert(productosEjemplo);
+
+    if (error) {
+        mostrarNotificacion("Error al cargar productos de ejemplo: " + error.message, "error");
+    } else {
+        mostrarNotificacion("¡15 prendas de ejemplo cargadas con éxito!", "success");
+        cargarInventario();
+    }
+}
+
+const btnCargarEjemplos = document.getElementById("btnCargarEjemplos");
+if (btnCargarEjemplos) {
+    btnCargarEjemplos.addEventListener("click", cargarProductosEjemplo);
 }
 
 /* ==========================================================================

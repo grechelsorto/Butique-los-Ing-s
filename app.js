@@ -915,10 +915,157 @@ if (btnCancelarProveedor) {
 
 
 /* ==========================================================================
-   PASO 7: EJECUCIÓN AUTOMÁTICA AL CARGAR CADA PÁGINA
+   PASO 7: CATÁLOGO PÚBLICO PARA CLIENTES (index.html)
+   ========================================================================== */
+let catalogoPrendasPublico = [];
+
+async function cargarCatalogoPublico() {
+    const contenedor = document.getElementById("catalogoPublicoGrid");
+    if (!contenedor) return;
+
+    contenedor.innerHTML = `
+        <div class="col-span-full py-16 text-center text-slate-400">
+            <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-800/60 border border-pink-500/25 text-pink-300 text-xs font-medium">
+                <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-pink-400"></i>
+                <span>Cargando colección de prendas...</span>
+            </div>
+        </div>
+    `;
+    refrescarIconos();
+
+    const { data: productos, error } = await supabaseClient
+        .from('productos')
+        .select('*')
+        .order('id', { ascending: false });
+
+    if (error) {
+        console.error("Error al cargar catálogo público:", error);
+        contenedor.innerHTML = `
+            <div class="col-span-full py-12 text-center text-rose-400">
+                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30">
+                    <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                    <span>No se pudo cargar la colección de prendas en este momento.</span>
+                </div>
+            </div>
+        `;
+        refrescarIconos();
+        return;
+    }
+
+    catalogoPrendasPublico = productos || [];
+    renderizarCatalogoPublico(catalogoPrendasPublico);
+}
+
+function renderizarCatalogoPublico(prendas) {
+    const contenedor = document.getElementById("catalogoPublicoGrid");
+    if (!contenedor) return;
+
+    if (!prendas || prendas.length === 0) {
+        contenedor.innerHTML = `
+            <div class="col-span-full py-16 text-center text-slate-400">
+                <div class="space-y-2 max-w-sm mx-auto">
+                    <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
+                        <i data-lucide="search-x" class="w-6 h-6"></i>
+                    </div>
+                    <p class="font-medium text-slate-300">No se encontraron prendas</p>
+                    <p class="text-xs text-slate-500">Intenta con otro término de búsqueda o revisa más tarde nuestras novedades.</p>
+                </div>
+            </div>
+        `;
+        refrescarIconos();
+        return;
+    }
+
+    contenedor.innerHTML = "";
+
+    prendas.forEach(prenda => {
+        const cantidad = Number(prenda.cantidad) || 0;
+        let badgeHtml = "";
+
+        if (cantidad <= 0) {
+            badgeHtml = `
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30">
+                    <i data-lucide="ban" class="w-3 h-3"></i>
+                    <span>Agotado</span>
+                </span>
+            `;
+        } else if (cantidad <= 5) {
+            badgeHtml = `
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    <i data-lucide="clock" class="w-3 h-3"></i>
+                    <span>Pocas unidades (${cantidad})</span>
+                </span>
+            `;
+        } else {
+            badgeHtml = `
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                    <i data-lucide="check" class="w-3 h-3"></i>
+                    <span>Disponible</span>
+                </span>
+            `;
+        }
+
+        const tarjeta = document.createElement("article");
+        tarjeta.className = "neon-card p-5 rounded-2xl flex flex-col justify-between group transition-all duration-300 hover:-translate-y-1";
+
+        tarjeta.innerHTML = `
+            <div>
+                <div class="flex items-start justify-between gap-2 mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500/20 to-violet-500/20 border border-pink-400/30 flex items-center justify-center text-pink-400 group-hover:border-pink-400/60 transition shadow-lg shadow-pink-500/10">
+                        <i data-lucide="shirt" class="w-5 h-5"></i>
+                    </div>
+                    ${badgeHtml}
+                </div>
+
+                <h3 class="text-base font-bold text-slate-100 group-hover:text-pink-300 transition leading-snug">
+                    ${escaparAtributo(prenda.nombre)}
+                </h3>
+            </div>
+
+            <div class="pt-4 mt-4 border-t border-slate-800/80 flex items-center justify-between">
+                <div>
+                    <p class="text-[10px] uppercase font-semibold tracking-wider text-slate-400">Precio</p>
+                    <p class="text-lg font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-300 to-fuchsia-400">
+                        ${formatearLempiras(prenda.precio)}
+                    </p>
+                </div>
+                <div class="w-8 h-8 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400/70 group-hover:text-pink-300 group-hover:border-pink-400/40 transition">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                </div>
+            </div>
+        `;
+
+        contenedor.appendChild(tarjeta);
+    });
+
+    refrescarIconos();
+}
+
+function filtrarCatalogoPublico(termino) {
+    const query = String(termino || "").toLowerCase().trim();
+    if (!query) {
+        renderizarCatalogoPublico(catalogoPrendasPublico);
+        return;
+    }
+    const filtrados = catalogoPrendasPublico.filter(item => 
+        String(item.nombre || "").toLowerCase().includes(query)
+    );
+    renderizarCatalogoPublico(filtrados);
+}
+
+const inputBusquedaCatalogo = document.getElementById("inputBusquedaCatalogo");
+if (inputBusquedaCatalogo) {
+    inputBusquedaCatalogo.addEventListener("input", (e) => {
+        filtrarCatalogoPublico(e.target.value);
+    });
+}
+
+/* ==========================================================================
+   PASO 8: EJECUCIÓN AUTOMÁTICA AL CARGAR CADA PÁGINA
    ========================================================================== */
 document.addEventListener("DOMContentLoaded", () => {
     refrescarIconos();
+    if (document.getElementById("catalogoPublicoGrid")) cargarCatalogoPublico();
     if (document.getElementById("productTableBody")) cargarInventario();
     if (document.getElementById("personalTableBody")) cargarPersonal();
     if (document.getElementById("proveedoresTableBody")) cargarProveedores();

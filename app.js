@@ -1225,8 +1225,10 @@ async function eliminarUsuario(id) {
 /* ==========================================================================
    PASO 7: MÓDULO DE PROVEEDORES
    Tabla: proveedores
-   Columnas: id, nombre, contacto, telefono, correo, categoria, creado_en
+   Columnas esperadas: codigo (o PK), empresa, encargado, telefono, direccion, correo
    ========================================================================== */
+
+let columnaClaveProveedor = "codigo"; // Se detecta automáticamente al cargar
 
 async function cargarProveedores() {
     const tableBody = document.getElementById("proveedoresTableBody");
@@ -1234,7 +1236,7 @@ async function cargarProveedores() {
 
     tableBody.innerHTML = `
         <tr>
-            <td colspan="5" class="py-10 text-center text-slate-400">
+            <td colspan="7" class="py-10 text-center text-slate-400">
                 <i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2"></i>
                 Cargando proveedores...
             </td>
@@ -1242,17 +1244,18 @@ async function cargarProveedores() {
     `;
     refrescarIconos();
 
+    // Consultamos sin .order("id") fijo para evitar fallo si la PK se llama "codigo"
     const { data: proveedores, error } = await supabaseClient
         .from("proveedores")
-        .select("*")
-        .order("id", { ascending: false });
+        .select("*");
 
     if (error) {
+        console.error("Detalle error Supabase proveedores:", error);
         mostrarNotificacion("Error al cargar proveedores: " + error.message, "error");
         tableBody.innerHTML = `
             <tr>
-                <td colspan="5" class="py-8 text-center text-rose-400">
-                    Error al cargar proveedores.
+                <td colspan="7" class="py-8 text-center text-rose-400">
+                    Error al cargar proveedores: ${escaparAtributo(error.message)}
                 </td>
             </tr>
         `;
@@ -1262,7 +1265,7 @@ async function cargarProveedores() {
     if (!proveedores || proveedores.length === 0) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="5" class="py-10 text-center text-slate-400">
+                <td colspan="7" class="py-10 text-center text-slate-400">
                     No hay proveedores registrados aún.
                 </td>
             </tr>
@@ -1270,28 +1273,42 @@ async function cargarProveedores() {
         return;
     }
 
+    // Detectar automáticamente cómo se llama la columna clave primaria en Supabase
+    const muestra = proveedores[0];
+    if ("codigo" in muestra) columnaClaveProveedor = "codigo";
+    else if ("id_proveedor" in muestra) columnaClaveProveedor = "id_proveedor";
+    else if ("id" in muestra) columnaClaveProveedor = "id";
+
+    // Ordenar del más reciente al más antiguo en el navegador
+    proveedores.sort((a, b) => Number(b[columnaClaveProveedor] || 0) - Number(a[columnaClaveProveedor] || 0));
+
     tableBody.innerHTML = "";
 
     proveedores.forEach(prov => {
+        const claveId = prov[columnaClaveProveedor];
         const fila = document.createElement("tr");
         fila.className = "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors";
 
         fila.innerHTML = `
-            <td class="py-3.5 px-4 font-medium text-slate-100">
-                ${escaparAtributo(prov.nombre)}
+            <td class="py-3.5 px-3 font-mono text-xs text-pink-300 font-semibold">
+                ${escaparAtributo(claveId ?? "-")}
             </td>
-            <td class="py-3.5 px-4 text-slate-300">
-                ${escaparAtributo(prov.contacto || "-")}
+            <td class="py-3.5 px-3 font-medium text-slate-100">
+                ${escaparAtributo(prov.empresa || prov.nombre || "-")}
             </td>
-            <td class="py-3.5 px-4 text-slate-300">
+            <td class="py-3.5 px-3 text-slate-300">
+                ${escaparAtributo(prov.encargado || prov.contacto || "-")}
+            </td>
+            <td class="py-3.5 px-3 text-slate-300 whitespace-nowrap">
                 ${escaparAtributo(prov.telefono || "-")}
             </td>
-            <td class="py-3.5 px-4">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/30">
-                    ${escaparAtributo(prov.categoria || "General")}
-                </span>
+            <td class="py-3.5 px-3 text-slate-300">
+                ${escaparAtributo(prov.direccion || "-")}
             </td>
-            <td class="py-3.5 px-4 text-center">
+            <td class="py-3.5 px-3 text-slate-300">
+                ${escaparAtributo(prov.correo || "-")}
+            </td>
+            <td class="py-3.5 px-3 text-center">
                 <div class="inline-flex items-center justify-center gap-2">
                     <button type="button" class="btnEditarProveedor inline-flex items-center gap-1.5 text-xs font-medium bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/35 px-2.5 py-1.5 rounded-lg">
                         <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
@@ -1310,7 +1327,7 @@ async function cargarProveedores() {
         });
 
         fila.querySelector(".btnEliminarProveedor")?.addEventListener("click", () => {
-            eliminarProveedor(prov.id);
+            eliminarProveedor(claveId);
         });
 
         tableBody.appendChild(fila);
@@ -1320,55 +1337,55 @@ async function cargarProveedores() {
 }
 
 function prepararEdicionProveedor(prov) {
-    proveedorEnEdicionId = prov.id;
+    proveedorEnEdicionId = prov[columnaClaveProveedor];
 
-    if (document.getElementById("nombreProveedor")) {
-        document.getElementById("nombreProveedor").value = prov.nombre || "";
+    if (document.getElementById("empresa")) {
+        document.getElementById("empresa").value = prov.empresa || prov.nombre || "";
     }
-    if (document.getElementById("contactoProveedor")) {
-        document.getElementById("contactoProveedor").value = prov.contacto || "";
+    if (document.getElementById("encargado")) {
+        document.getElementById("encargado").value = prov.encargado || prov.contacto || "";
     }
-    if (document.getElementById("telefonoProveedor")) {
-        document.getElementById("telefonoProveedor").value = prov.telefono || "";
+    if (document.getElementById("telefono_prov")) {
+        document.getElementById("telefono_prov").value = prov.telefono || "";
     }
-    if (document.getElementById("correoProveedor")) {
-        document.getElementById("correoProveedor").value = prov.correo || "";
+    if (document.getElementById("direccion_prov")) {
+        document.getElementById("direccion_prov").value = prov.direccion || "";
     }
-    if (document.getElementById("categoriaProveedor")) {
-        document.getElementById("categoriaProveedor").value = prov.categoria || "";
+    if (document.getElementById("correo")) {
+        document.getElementById("correo").value = prov.correo || "";
     }
 
-    const titulo = document.getElementById("formProveedorTitulo");
-    if (titulo) titulo.textContent = "Editar Proveedor";
+    const titulo = document.getElementById("tituloProveedor");
+    if (titulo) titulo.textContent = "Editar proveedor";
 
-    const btnSubmit = document.querySelector("#proveedorForm button[type='submit']");
+    const btnSubmit = document.getElementById("btnGuardarProveedor");
     if (btnSubmit) {
         btnSubmit.innerHTML = `
             <i data-lucide="save" class="w-4 h-4"></i>
-            <span>Actualizar Proveedor</span>
+            <span>Actualizar proveedor</span>
         `;
     }
 
-    document.getElementById("btnCancelarEdicionProveedor")?.classList.remove("hidden");
+    document.getElementById("btnCancelarProveedor")?.classList.remove("hidden");
     refrescarIconos();
 }
 
 function cancelarEdicionProveedor() {
     proveedorEnEdicionId = null;
-    document.getElementById("proveedorForm")?.reset();
+    document.getElementById("proveedoresForm")?.reset();
 
-    const titulo = document.getElementById("formProveedorTitulo");
-    if (titulo) titulo.textContent = "Nuevo Proveedor";
+    const titulo = document.getElementById("tituloProveedor");
+    if (titulo) titulo.textContent = "Registrar proveedor";
 
-    const btnSubmit = document.querySelector("#proveedorForm button[type='submit']");
+    const btnSubmit = document.getElementById("btnGuardarProveedor");
     if (btnSubmit) {
         btnSubmit.innerHTML = `
             <i data-lucide="check" class="w-4 h-4"></i>
-            <span>Guardar Proveedor</span>
+            <span>Registrar proveedor</span>
         `;
     }
 
-    document.getElementById("btnCancelarEdicionProveedor")?.classList.add("hidden");
+    document.getElementById("btnCancelarProveedor")?.classList.add("hidden");
     refrescarIconos();
 }
 
@@ -1381,25 +1398,25 @@ async function guardarProveedor(evento) {
         return;
     }
 
-    const nombre = document.getElementById("nombreProveedor")?.value.trim();
-    const contacto = document.getElementById("contactoProveedor")?.value.trim() || "";
-    const telefono = document.getElementById("telefonoProveedor")?.value.trim() || "";
-    const correo = document.getElementById("correoProveedor")?.value.trim() || "";
-    const categoria = document.getElementById("categoriaProveedor")?.value.trim() || "General";
+    const empresa = document.getElementById("empresa")?.value.trim();
+    const encargado = document.getElementById("encargado")?.value.trim();
+    const telefono = document.getElementById("telefono_prov")?.value.trim() || "";
+    const direccion = document.getElementById("direccion_prov")?.value.trim() || "";
+    const correo = document.getElementById("correo")?.value.trim() || "";
 
-    if (!nombre) {
-        mostrarNotificacion("El nombre del proveedor es obligatorio.", "error");
+    if (!empresa || !encargado) {
+        mostrarNotificacion("Empresa y representante son obligatorios.", "error");
         return;
     }
 
-    const datos = { nombre, contacto, telefono, correo, categoria };
+    const datos = { empresa, encargado, telefono, direccion, correo };
     let errorOp = null;
 
-    if (proveedorEnEdicionId) {
+    if (proveedorEnEdicionId !== null) {
         const { error } = await supabaseClient
             .from("proveedores")
             .update(datos)
-            .eq("id", proveedorEnEdicionId);
+            .eq(columnaClaveProveedor, proveedorEnEdicionId);
         errorOp = error;
     } else {
         const { error } = await supabaseClient
@@ -1414,7 +1431,7 @@ async function guardarProveedor(evento) {
     }
 
     mostrarNotificacion(
-        proveedorEnEdicionId ? "¡Proveedor actualizado!" : "¡Proveedor registrado!",
+        proveedorEnEdicionId !== null ? "¡Proveedor actualizado!" : "¡Proveedor registrado!",
         "success"
     );
 
@@ -1431,14 +1448,14 @@ async function eliminarProveedor(id) {
     const { error } = await supabaseClient
         .from("proveedores")
         .delete()
-        .eq("id", id);
+        .eq(columnaClaveProveedor, id);
 
     if (error) {
         mostrarNotificacion("Error al eliminar proveedor: " + error.message, "error");
         return;
     }
 
-    if (Number(proveedorEnEdicionId) === Number(id)) {
+    if (proveedorEnEdicionId === id) {
         cancelarEdicionProveedor();
     }
 
@@ -1579,15 +1596,14 @@ document.addEventListener("DOMContentLoaded", () => {
             usuarioForm?.addEventListener("submit", guardarUsuario);
         }
     }
-
-    // Página de Proveedores
-    const proveedorForm = document.getElementById("proveedorForm");
+// Página de Proveedores
+    const proveedorForm = document.getElementById("proveedoresForm");
     if (document.getElementById("proveedoresTableBody")) {
         if (protegerPagina(["admin", "encargado_proveedores"])) {
             configurarSidebarYHeader();
             cargarProveedores();
             proveedorForm?.addEventListener("submit", guardarProveedor);
-            document.getElementById("btnCancelarEdicionProveedor")?.addEventListener("click", cancelarEdicionProveedor);
+            document.getElementById("btnCancelarProveedor")?.addEventListener("click", cancelarEdicionProveedor);
         }
     }
 

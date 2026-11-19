@@ -168,11 +168,6 @@ function mostrarConfirmacion(mensaje, textoConfirmar = null) {
    Bucket: fotos-productos
    ========================================================================== */
 
-/*
-   La columna imagenes de Supabase es JSONB.
-   Se admiten arreglos de URL, cadenas JSON y objetos con URL.
-*/
-
 function obtenerUrlImagen(imagenes) {
     if (!imagenes) return null;
 
@@ -513,6 +508,73 @@ function restaurarBotonLogin() {
     }
 }
 
+async function iniciarSesion(evento) {
+    evento.preventDefault();
+
+    const usuarioInput = document.getElementById("usuario")?.value.trim();
+    const passwordInput = document.getElementById("password")?.value.trim();
+    const btnLogin = document.getElementById("btnLogin");
+
+    if (!usuarioInput || !passwordInput) {
+        mostrarNotificacion("Ingresa tu usuario y contraseña.", "error");
+        return;
+    }
+
+    if (btnLogin) {
+        btnLogin.disabled = true;
+        btnLogin.innerHTML = `
+            <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+            <span>Verificando credenciales...</span>
+        `;
+        refrescarIconos();
+    }
+
+    try {
+        const { data: usuarioData, error } = await supabaseClient
+            .from("usuarios")
+            .select("*")
+            .eq("usuario", usuarioInput)
+            .eq("password", passwordInput)
+            .maybeSingle();
+
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        if (!usuarioData) {
+            mostrarNotificacion("Usuario o contraseña incorrectos.", "error");
+            restaurarBotonLogin();
+            return;
+        }
+
+        if (usuarioData.activo === false) {
+            mostrarNotificacion("Este usuario está desactivado. Contacta al administrador.", "error");
+            restaurarBotonLogin();
+            return;
+        }
+
+        sessionStorage.setItem("usuarioId", usuarioData.id);
+        sessionStorage.setItem("usuario", usuarioData.usuario);
+        sessionStorage.setItem("nombre", usuarioData.nombre || usuarioData.usuario);
+        sessionStorage.setItem("rol", usuarioData.rol);
+
+        mostrarNotificacion(`¡Bienvenido/a, ${usuarioData.nombre || usuarioData.usuario}!`, "success");
+
+        setTimeout(() => {
+            if (usuarioData.rol === "encargado_proveedores") {
+                window.location.replace("proveedores.html");
+            } else {
+                window.location.replace("inventario.html");
+            }
+        }, 600);
+
+    } catch (error) {
+        console.error("Error en login:", error);
+        mostrarNotificacion("Error al iniciar sesión: " + error.message, "error");
+        restaurarBotonLogin();
+    }
+}
+
 /* ==========================================================================
    PASO 5: MÓDULO DE INVENTARIO
    Tabla: productos
@@ -834,6 +896,80 @@ function cancelarEdicionProducto() {
     refrescarIconos();
 }
 
+async function guardarProducto(evento) {
+    evento.preventDefault();
+
+    const rolActual = sessionStorage.getItem("rol");
+
+    if (
+        rolActual !== "admin" &&
+        rolActual !== "encargado_inventario"
+    ) {
+        mostrarNotificacion(
+            "No tienes permiso para guardar prendas.",
+            "error"
+        );
+        return;
+    }
+
+    const nombre = document.getElementById("nombre")?.value.trim();
+    const cantidad = parseInt(document.getElementById("cantidad")?.value, 10) || 0;
+    const precio = parseFloat(document.getElementById("precio")?.value) || 0;
+
+    if (!nombre || cantidad < 0 || precio <= 0) {
+        mostrarNotificacion(
+            "Completa todos los campos con valores válidos.",
+            "error"
+        );
+        return;
+    }
+
+    const datosProducto = {
+        nombre,
+        cantidad,
+        precio
+    };
+
+    if (imagenProductoGenerada) {
+        datosProducto.imagenes = [imagenProductoGenerada];
+    }
+
+    let errorOperacion = null;
+
+    if (idProductoEditando) {
+        const { error } = await supabaseClient
+            .from("productos")
+            .update(datosProducto)
+            .eq("id", idProductoEditando);
+
+        errorOperacion = error;
+    } else {
+        const { error } = await supabaseClient
+            .from("productos")
+            .insert([datosProducto]);
+
+        errorOperacion = error;
+    }
+
+    if (errorOperacion) {
+        mostrarNotificacion(
+            "Error al guardar la prenda: " + errorOperacion.message,
+            "error"
+        );
+        return;
+    }
+
+    mostrarNotificacion(
+        idProductoEditando
+            ? "¡Prenda actualizada correctamente!"
+            : "¡Prenda registrada en el inventario!",
+        "success"
+    );
+
+    cancelarEdicionProducto();
+    await cargarInventario();
+}
+
 async function eliminarProducto(id) {
     const rolActual = sessionStorage.getItem("rol");
 
@@ -914,136 +1050,114 @@ async function cargarProductosEjemplo() {
         { nombre: "Bolso tote de cuero para dama - Única", cantidad: 7, precio: 950.00 },
         { nombre: "Bolso bandolera acolchado rosa - Única", cantidad: 11, precio: 720.00 },
         { nombre: "Cinturón de cuero con hebilla dorada - Única", cantidad: 25, precio: 280.00 },
-        { nombre: "Bufanda de cachemira estampada - Única", cantidad: 16, precio: 320.00 }
+        { nombre: "Bufanda de cachemira estampada - Única", cantidad: 16, precio: 340.00 }
     ];
-
-    // imagenes es JSONB, por eso cada producto inicia con un arreglo vacío.
-    const productosConImagenes = productosEjemplo.map(producto => ({
-        ...producto,
-        imagenes: []
-    }));
 
     const { error } = await supabaseClient
         .from("productos")
-        .insert(productosConImagenes);
+        .insert(productosEjemplo);
 
     if (error) {
         mostrarNotificacion(
             "Error al cargar productos de ejemplo: " + error.message,
             "error"
         );
-    } else {
-        mostrarNotificacion(
-            "¡15 prendas de ejemplo cargadas con éxito!",
-            "success"
-        );
-
-        await cargarInventario();
+        return;
     }
+
+    mostrarNotificacion(
+        "¡15 productos de ejemplo cargados correctamente!",
+        "success"
+    );
+
+    await cargarInventario();
 }
 
 /* ==========================================================================
-   PASO 6: MÓDULO DE PERSONAL
-   Tabla: personal
+   PASO 6: MÓDULO DE PERSONAL Y USUARIOS
+   Tabla: usuarios
+   Columnas: id, nombre, usuario, password, rol, activo, creado_en
    ========================================================================== */
 
-function actualizarResumenPersonal(listaPersonal = []) {
-    const elTotal = document.getElementById("statTotalPersonal");
-    const elMasc = document.getElementById("statPersonalMasculino");
-    const elFem = document.getElementById("statPersonalFemenino");
-
-    const total = listaPersonal.length;
-
-    const masculino = listaPersonal.filter(
-        p => String(p.genero).toLowerCase() === "masculino"
-    ).length;
-
-    const femenino = listaPersonal.filter(
-        p => String(p.genero).toLowerCase() === "femenino"
-    ).length;
-
-    if (elTotal) elTotal.textContent = total;
-    if (elMasc) elMasc.textContent = masculino;
-    if (elFem) elFem.textContent = femenino;
-}
-
-async function cargarPersonal() {
-    const tableBody =
-        document.getElementById("personalTableBody");
-
+async function cargarUsuarios() {
+    const tableBody = document.getElementById("usuariosTableBody");
     if (!tableBody) return;
 
-    const { data: listaPersonal, error } = await supabaseClient
-        .from("personal")
-        .select("*");
+    tableBody.innerHTML = `
+        <tr>
+            <td colspan="4" class="py-10 text-center text-slate-400">
+                <i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2"></i>
+                Cargando personal...
+            </td>
+        </tr>
+    `;
+    refrescarIconos();
+
+    const { data: usuarios, error } = await supabaseClient
+        .from("usuarios")
+        .select("*")
+        .order("id", { ascending: true });
 
     if (error) {
-        console.error("Error al cargar personal:", error);
-
-        mostrarNotificacion(
-            "Error al cargar el equipo: " + error.message,
-            "error"
-        );
-
-        actualizarResumenPersonal([]);
-        return;
-    }
-
-    actualizarResumenPersonal(listaPersonal || []);
-
-    if (!listaPersonal || listaPersonal.length === 0) {
+        mostrarNotificacion("Error al cargar personal: " + error.message, "error");
         tableBody.innerHTML = `
             <tr>
-                <td colspan="6" class="py-10 text-center text-slate-400">
-                    No hay integrantes registrados aún.
+                <td colspan="4" class="py-8 text-center text-rose-400">
+                    Error al cargar la lista de usuarios.
                 </td>
             </tr>
         `;
-
         return;
     }
 
+    if (!usuarios || usuarios.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="4" class="py-10 text-center text-slate-400">
+                    No hay usuarios registrados.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    const usuarioActualId = Number(sessionStorage.getItem("usuarioId"));
     tableBody.innerHTML = "";
 
-    listaPersonal.forEach(persona => {
+    usuarios.forEach(u => {
         const fila = document.createElement("tr");
+        fila.className = "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors";
 
-        fila.className =
-            "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors";
+        const esMismoUsuario = Number(u.id) === usuarioActualId;
 
         fila.innerHTML = `
-            <td class="py-3.5 px-4 text-pink-300 font-semibold">
-                ${escaparAtributo(persona.identidad)}
+            <td class="py-3.5 px-4 font-medium text-slate-100">
+                ${escaparAtributo(u.nombre || u.usuario)}
             </td>
-
-            <td class="py-3.5 px-4 text-slate-100 font-medium">
-                ${escaparAtributo(persona.nombres_apellidos)}
+            <td class="py-3.5 px-4 text-slate-300 font-mono text-xs">
+                ${escaparAtributo(u.usuario)}
             </td>
-
-            <td class="py-3.5 px-4 text-slate-300">
-                ${escaparAtributo(persona.genero)}
+            <td class="py-3.5 px-4">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-pink-500/15 text-pink-300 border border-pink-500/30">
+                    ${escaparAtributo(obtenerNombreRol(u.rol))}
+                </span>
             </td>
-
-            <td class="py-3.5 px-4 text-slate-300">
-                ${escaparAtributo(persona.telefono)}
-            </td>
-
-            <td class="py-3.5 px-4 text-slate-400">
-                ${escaparAtributo(persona.direccion)}
-            </td>
-
             <td class="py-3.5 px-4 text-center">
-                <button
-                    type="button"
-                    data-identidad="${escaparAtributo(persona.identidad)}"
-                    onclick="eliminarPersonal(this.dataset.identidad)"
-                    class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg">
-
-                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                    Eliminar
-                </button>
+                ${esMismoUsuario
+                    ? `<span class="text-xs text-slate-500 italic">Sesión actual</span>`
+                    : `<button type="button" data-id="${escaparAtributo(u.id)}"
+                        class="btnEliminarUsuario inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        Eliminar
+                       </button>`
+                }
             </td>
         `;
+
+        const btnEliminar = fila.querySelector(".btnEliminarUsuario");
+        if (btnEliminar) {
+            btnEliminar.addEventListener("click", () => eliminarUsuario(u.id));
+        }
 
         tableBody.appendChild(fila);
     });
@@ -1051,369 +1165,153 @@ async function cargarPersonal() {
     refrescarIconos();
 }
 
-async function eliminarPersonal(identidad) {
+async function guardarUsuario(evento) {
+    evento.preventDefault();
+
     if (sessionStorage.getItem("rol") !== "admin") {
-        mostrarNotificacion(
-            "Solo el Administrador puede retirar colaboradores.",
-            "error"
-        );
+        mostrarNotificacion("Solo el Administrador puede gestionar usuarios.", "error");
         return;
     }
 
-    const confirmado = await mostrarConfirmacion(
-        "¿Estás seguro de que deseas retirar a este integrante del equipo?"
-    );
+    const nombre = document.getElementById("nombreUsuario")?.value.trim();
+    const usuario = document.getElementById("loginUsuario")?.value.trim();
+    const password = document.getElementById("passwordUsuario")?.value.trim();
+    const rol = document.getElementById("rolUsuario")?.value;
 
-    if (!confirmado) return;
+    if (!nombre || !usuario || !password || !rol) {
+        mostrarNotificacion("Completa todos los campos del usuario.", "error");
+        return;
+    }
 
     const { error } = await supabaseClient
-        .from("personal")
-        .delete()
-        .eq("identidad", identidad);
+        .from("usuarios")
+        .insert([{ nombre, usuario, password, rol, activo: true }]);
 
     if (error) {
-        mostrarNotificacion(
-            "Error al eliminar integrante: " + error.message,
-            "error"
-        );
+        mostrarNotificacion("Error al registrar usuario: " + error.message, "error");
         return;
     }
 
-    mostrarNotificacion(
-        "¡Integrante retirado del equipo correctamente!",
-        "success"
-    );
-
-    await cargarPersonal();
-    await cargarSelectEmpleados();
+    mostrarNotificacion("¡Usuario registrado correctamente!", "success");
+    document.getElementById("usuarioForm")?.reset();
     await cargarUsuarios();
 }
 
-/* ==========================================================================
-   PASO 7: GESTIÓN DE USUARIOS
-   Tabla: usuarios
-   ========================================================================== */
-
-async function cargarSelectEmpleados() {
-    const select =
-        document.getElementById("nuevoEmpleadoIdentidad");
-
-    if (!select) return;
-
-    const { data: empleados, error } = await supabaseClient
-        .from("personal")
-        .select("identidad, nombres_apellidos")
-        .order("nombres_apellidos", { ascending: true });
-
-    if (error) {
-        console.error("Error al cargar empleados:", error);
-        return;
-    }
-
-    select.innerHTML =
-        `<option value="">-- Sin vincular a colaborador --</option>`;
-
-    (empleados || []).forEach(emp => {
-        const opt = document.createElement("option");
-
-        opt.value = emp.identidad;
-
-        opt.textContent =
-            `${emp.nombres_apellidos} (${emp.identidad})`;
-
-        select.appendChild(opt);
-    });
-}
-
-async function cargarUsuarios() {
-    const tableBody =
-        document.getElementById("usuariosTableBody");
-
-    if (!tableBody) return;
-
-    tableBody.innerHTML = `
-        <tr>
-            <td colspan="4" class="py-8 text-center text-slate-400">
-                Cargando cuentas de usuario...
-            </td>
-        </tr>
-    `;
-
-    try {
-        const { data: usuarios, error } = await supabaseClient
-            .from("usuarios")
-            .select("*")
-            .order("usuario", { ascending: true });
-
-        if (error) {
-            console.error("Error al cargar usuarios:", error);
-
-            mostrarNotificacion(
-                "Error al cargar usuarios: " + error.message,
-                "error"
-            );
-
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="4" class="py-8 text-center text-rose-400">
-                        Error al consultar la tabla usuarios.
-                    </td>
-                </tr>
-            `;
-
-            return;
-        }
-
-        const { data: listaPersonal } = await supabaseClient
-            .from("personal")
-            .select("identidad, nombres_apellidos");
-
-        const mapaPersonal = {};
-
-        (listaPersonal || []).forEach(p => {
-            mapaPersonal[p.identidad] = p.nombres_apellidos;
-        });
-
-        if (!usuarios || usuarios.length === 0) {
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="4" class="py-10 text-center text-slate-400">
-                        No hay cuentas de usuario registradas.
-                    </td>
-                </tr>
-            `;
-
-            return;
-        }
-
-        const usuarioLogueado =
-            sessionStorage.getItem("usuario");
-
-        tableBody.innerHTML = "";
-
-        usuarios.forEach(u => {
-            const fila = document.createElement("tr");
-
-            fila.className =
-                "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors";
-
-            const roles = {
-                admin: "Administrador",
-                encargado_inventario: "Encargado Inventario",
-                encargado_proveedores: "Encargado Proveedores",
-                asesor: "Asesor de Moda"
-            };
-
-            const rolTexto = roles[u.rol] || u.rol;
-
-            const colaborador = u.identidad
-                ? `
-                    <div>
-                        <span class="text-sm font-medium text-slate-200 block">
-                            ${escaparAtributo(mapaPersonal[u.identidad] || "Colaborador")}
-                        </span>
-
-                        <span class="text-xs text-pink-300 font-mono">
-                            ${escaparAtributo(u.identidad)}
-                        </span>
-                    </div>
-                `
-                : `<span class="text-xs text-slate-500 italic">Sin vincular</span>`;
-
-            const accion = u.usuario === usuarioLogueado
-                ? `
-                    <span class="text-xs text-pink-400">
-                        Sesión actual
-                    </span>
-                `
-                : `
-                    <button
-                        type="button"
-                        data-usuario="${escaparAtributo(u.usuario)}"
-                        onclick="eliminarUsuario(this.dataset.usuario)"
-                        class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg">
-
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                        Eliminar
-                    </button>
-                `;
-
-            fila.innerHTML = `
-                <td class="py-3.5 px-4 font-semibold text-slate-100">
-                    ${escaparAtributo(u.usuario)}
-                </td>
-
-                <td class="py-3.5 px-4 text-slate-300">
-                    ${escaparAtributo(rolTexto)}
-                </td>
-
-                <td class="py-3.5 px-4">
-                    ${colaborador}
-                </td>
-
-                <td class="py-3.5 px-4 text-center">
-                    ${accion}
-                </td>
-            `;
-
-            tableBody.appendChild(fila);
-        });
-
-        refrescarIconos();
-
-    } catch (error) {
-        console.error("Error inesperado al cargar usuarios:", error);
-
-        mostrarNotificacion(
-            "Error al cargar usuarios: " + error.message,
-            "error"
-        );
-    }
-}
-
-async function eliminarUsuario(nombreUsuario) {
+async function eliminarUsuario(id) {
     if (sessionStorage.getItem("rol") !== "admin") {
-        mostrarNotificacion(
-            "Solo el Administrador puede eliminar usuarios.",
-            "error"
-        );
-        return;
-    }
-
-    if (nombreUsuario === sessionStorage.getItem("usuario")) {
-        mostrarNotificacion(
-            "No puedes eliminar tu propia cuenta.",
-            "error"
-        );
+        mostrarNotificacion("No tienes permiso para eliminar usuarios.", "error");
         return;
     }
 
     const confirmado = await mostrarConfirmacion(
-        `¿Estás seguro de eliminar la cuenta "${nombreUsuario}"?`
+        "¿Deseas eliminar este usuario del sistema?"
     );
-
     if (!confirmado) return;
 
     const { error } = await supabaseClient
         .from("usuarios")
         .delete()
-        .eq("usuario", nombreUsuario);
+        .eq("id", id);
 
     if (error) {
-        mostrarNotificacion(
-            "Error al eliminar usuario: " + error.message,
-            "error"
-        );
+        mostrarNotificacion("Error al eliminar usuario: " + error.message, "error");
         return;
     }
 
-    mostrarNotificacion(
-        `Usuario "${nombreUsuario}" eliminado correctamente.`,
-        "success"
-    );
-
+    mostrarNotificacion("Usuario eliminado correctamente.", "success");
     await cargarUsuarios();
 }
 
 /* ==========================================================================
-   PASO 8: MÓDULO DE PROVEEDORES
+   PASO 7: MÓDULO DE PROVEEDORES
    Tabla: proveedores
+   Columnas: id, nombre, contacto, telefono, correo, categoria, creado_en
    ========================================================================== */
 
 async function cargarProveedores() {
-    const tableBody =
-        document.getElementById("proveedoresTableBody");
-
+    const tableBody = document.getElementById("proveedoresTableBody");
     if (!tableBody) return;
 
-    const { data: listaProveedores, error } = await supabaseClient
+    tableBody.innerHTML = `
+        <tr>
+            <td colspan="5" class="py-10 text-center text-slate-400">
+                <i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2"></i>
+                Cargando proveedores...
+            </td>
+        </tr>
+    `;
+    refrescarIconos();
+
+    const { data: proveedores, error } = await supabaseClient
         .from("proveedores")
         .select("*")
-        .order("codigo", { ascending: false });
+        .order("id", { ascending: false });
 
     if (error) {
-        console.error("Error al cargar proveedores:", error);
-
-        mostrarNotificacion(
-            "Error al cargar proveedores: " + error.message,
-            "error"
-        );
-
+        mostrarNotificacion("Error al cargar proveedores: " + error.message, "error");
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="py-8 text-center text-rose-400">
+                    Error al cargar proveedores.
+                </td>
+            </tr>
+        `;
         return;
     }
 
-    if (!listaProveedores || listaProveedores.length === 0) {
+    if (!proveedores || proveedores.length === 0) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="7" class="py-8 text-center text-slate-400">
+                <td colspan="5" class="py-10 text-center text-slate-400">
                     No hay proveedores registrados aún.
                 </td>
             </tr>
         `;
-
-        refrescarIconos();
         return;
     }
 
     tableBody.innerHTML = "";
 
-    listaProveedores.forEach(prov => {
+    proveedores.forEach(prov => {
         const fila = document.createElement("tr");
-
-        fila.className =
-            "border-b border-slate-800/60 hover:bg-slate-800/30 transition";
+        fila.className = "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors";
 
         fila.innerHTML = `
-            <td class="py-3 px-3 text-sky-400 font-bold">
-                #${escaparAtributo(prov.codigo)}
+            <td class="py-3.5 px-4 font-medium text-slate-100">
+                ${escaparAtributo(prov.nombre)}
             </td>
-
-            <td class="py-3 px-3 text-slate-200">
-                ${escaparAtributo(prov.empresa)}
+            <td class="py-3.5 px-4 text-slate-300">
+                ${escaparAtributo(prov.contacto || "-")}
             </td>
-
-            <td class="py-3 px-3 text-slate-300">
-                ${escaparAtributo(prov.encargado)}
+            <td class="py-3.5 px-4 text-slate-300">
+                ${escaparAtributo(prov.telefono || "-")}
             </td>
-
-            <td class="py-3 px-3 text-slate-300">
-                ${escaparAtributo(prov.telefono)}
+            <td class="py-3.5 px-4">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/30">
+                    ${escaparAtributo(prov.categoria || "General")}
+                </span>
             </td>
-
-            <td class="py-3 px-3 text-slate-400">
-                ${escaparAtributo(prov.direccion)}
-            </td>
-
-            <td class="py-3 px-3 text-slate-400">
-                ${escaparAtributo(prov.correo)}
-            </td>
-
-            <td class="py-3 px-3 text-center">
+            <td class="py-3.5 px-4 text-center">
                 <div class="inline-flex items-center justify-center gap-2">
-
-                    <button
-                        type="button"
-                        data-accion="editar"
-                        data-id="${escaparAtributo(prov.codigo)}"
-                        class="inline-flex items-center gap-1.5 text-xs font-medium bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/35 px-2.5 py-1.5 rounded-lg">
-
+                    <button type="button" class="btnEditarProveedor inline-flex items-center gap-1.5 text-xs font-medium bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/35 px-2.5 py-1.5 rounded-lg">
                         <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
                         Editar
                     </button>
-
-                    <button
-                        type="button"
-                        data-accion="eliminar"
-                        data-id="${escaparAtributo(prov.codigo)}"
-                        class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg">
-
+                    <button type="button" class="btnEliminarProveedor inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg">
                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         Eliminar
                     </button>
-
                 </div>
             </td>
         `;
+
+        fila.querySelector(".btnEditarProveedor")?.addEventListener("click", () => {
+            prepararEdicionProveedor(prov);
+        });
+
+        fila.querySelector(".btnEliminarProveedor")?.addEventListener("click", () => {
+            eliminarProveedor(prov.id);
+        });
 
         tableBody.appendChild(fila);
     });
@@ -1421,942 +1319,288 @@ async function cargarProveedores() {
     refrescarIconos();
 }
 
-function cancelarEdicionProveedor() {
-    proveedorEnEdicionId = null;
+function prepararEdicionProveedor(prov) {
+    proveedorEnEdicionId = prov.id;
 
-    document.getElementById("proveedoresForm")?.reset();
-
-    const titulo =
-        document.getElementById("tituloProveedor");
-
-    if (titulo) {
-        titulo.textContent = "Registrar proveedor";
+    if (document.getElementById("nombreProveedor")) {
+        document.getElementById("nombreProveedor").value = prov.nombre || "";
+    }
+    if (document.getElementById("contactoProveedor")) {
+        document.getElementById("contactoProveedor").value = prov.contacto || "";
+    }
+    if (document.getElementById("telefonoProveedor")) {
+        document.getElementById("telefonoProveedor").value = prov.telefono || "";
+    }
+    if (document.getElementById("correoProveedor")) {
+        document.getElementById("correoProveedor").value = prov.correo || "";
+    }
+    if (document.getElementById("categoriaProveedor")) {
+        document.getElementById("categoriaProveedor").value = prov.categoria || "";
     }
 
-    const botonGuardar =
-        document.getElementById("btnGuardarProveedor");
+    const titulo = document.getElementById("formProveedorTitulo");
+    if (titulo) titulo.textContent = "Editar Proveedor";
 
-    if (botonGuardar) {
-        botonGuardar.innerHTML = `
-            <i data-lucide="check" class="w-4 h-4"></i>
-            <span>Registrar proveedor</span>
+    const btnSubmit = document.querySelector("#proveedorForm button[type='submit']");
+    if (btnSubmit) {
+        btnSubmit.innerHTML = `
+            <i data-lucide="save" class="w-4 h-4"></i>
+            <span>Actualizar Proveedor</span>
         `;
     }
 
-    document.getElementById("btnCancelarProveedor")
-        ?.classList.add("hidden");
-
+    document.getElementById("btnCancelarEdicionProveedor")?.classList.remove("hidden");
     refrescarIconos();
 }
 
-/* ==========================================================================
-   PASO 9: CATÁLOGO PÚBLICO
-   ========================================================================== */
+function cancelarEdicionProveedor() {
+    proveedorEnEdicionId = null;
+    document.getElementById("proveedorForm")?.reset();
 
-async function cargarCatalogoPublico() {
-    const contenedor =
-        document.getElementById("catalogoPublicoGrid");
+    const titulo = document.getElementById("formProveedorTitulo");
+    if (titulo) titulo.textContent = "Nuevo Proveedor";
 
-    if (!contenedor) return;
-
-    contenedor.innerHTML = `
-        <div class="col-span-full py-16 text-center text-slate-400">
-            Cargando colección de prendas...
-        </div>
-    `;
-
-    const { data: productos, error } = await supabaseClient
-        .from("productos")
-        .select("*")
-        .order("id", { ascending: false });
-
-    if (error) {
-        console.error("Error al cargar catálogo:", error);
-
-        contenedor.innerHTML = `
-            <div class="col-span-full py-12 text-center text-rose-400">
-                No se pudo cargar la colección de prendas.
-            </div>
+    const btnSubmit = document.querySelector("#proveedorForm button[type='submit']");
+    if (btnSubmit) {
+        btnSubmit.innerHTML = `
+            <i data-lucide="check" class="w-4 h-4"></i>
+            <span>Guardar Proveedor</span>
         `;
-
-        return;
     }
 
-    catalogoPrendasPublico = productos || [];
-
-    renderizarCatalogoPublico(catalogoPrendasPublico);
+    document.getElementById("btnCancelarEdicionProveedor")?.classList.add("hidden");
+    refrescarIconos();
 }
 
-function renderizarCatalogoPublico(prendas) {
-    const contenedor =
-        document.getElementById("catalogoPublicoGrid");
+async function guardarProveedor(evento) {
+    evento.preventDefault();
 
-    if (!contenedor) return;
-
-    if (!prendas || prendas.length === 0) {
-        contenedor.innerHTML = `
-            <div class="col-span-full py-16 text-center text-slate-400">
-                No se encontraron prendas.
-            </div>
-        `;
-
+    const rolActual = sessionStorage.getItem("rol");
+    if (rolActual !== "admin" && rolActual !== "encargado_proveedores") {
+        mostrarNotificacion("No tienes permiso para gestionar proveedores.", "error");
         return;
     }
 
-    contenedor.innerHTML = "";
+    const nombre = document.getElementById("nombreProveedor")?.value.trim();
+    const contacto = document.getElementById("contactoProveedor")?.value.trim() || "";
+    const telefono = document.getElementById("telefonoProveedor")?.value.trim() || "";
+    const correo = document.getElementById("correoProveedor")?.value.trim() || "";
+    const categoria = document.getElementById("categoriaProveedor")?.value.trim() || "General";
 
-    prendas.forEach(prenda => {
-        const cantidad = Number(prenda.cantidad) || 0;
+    if (!nombre) {
+        mostrarNotificacion("El nombre del proveedor es obligatorio.", "error");
+        return;
+    }
 
-        let badgeHtml = "";
+    const datos = { nombre, contacto, telefono, correo, categoria };
+    let errorOp = null;
 
-        if (cantidad <= 0) {
-            badgeHtml = `
-                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30">
-                    Agotado
-                </span>
-            `;
-        } else if (cantidad <= 5) {
-            badgeHtml = `
-                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                    Pocas unidades (${cantidad})
-                </span>
-            `;
-        } else {
-            badgeHtml = `
-                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                    Disponible
-                </span>
-            `;
-        }
+    if (proveedorEnEdicionId) {
+        const { error } = await supabaseClient
+            .from("proveedores")
+            .update(datos)
+            .eq("id", proveedorEnEdicionId);
+        errorOp = error;
+    } else {
+        const { error } = await supabaseClient
+            .from("proveedores")
+            .insert([datos]);
+        errorOp = error;
+    }
 
-        const urlImagen = obtenerUrlImagen(prenda.imagenes);
+    if (errorOp) {
+        mostrarNotificacion("Error al guardar proveedor: " + errorOp.message, "error");
+        return;
+    }
 
-        const imagenHtml = urlImagen
-            ? `
-                <img
-                    src="${escaparAtributo(urlImagen)}"
-                    alt="${escaparAtributo(prenda.nombre)}"
-                    class="w-full h-56 object-cover rounded-xl mb-4"
-                    loading="lazy"
-                >
-            `
-            : `
-                <div class="w-full h-56 rounded-xl mb-4 bg-gradient-to-br from-pink-500/10 to-violet-500/10 border border-pink-500/20 flex items-center justify-center">
-                    <i data-lucide="shirt" class="w-12 h-12 text-pink-400"></i>
-                </div>
-            `;
+    mostrarNotificacion(
+        proveedorEnEdicionId ? "¡Proveedor actualizado!" : "¡Proveedor registrado!",
+        "success"
+    );
 
-        const tarjeta = document.createElement("article");
+    cancelarEdicionProveedor();
+    await cargarProveedores();
+}
 
-        tarjeta.className =
-            "neon-card p-5 rounded-2xl flex flex-col justify-between group transition-all duration-300 hover:-translate-y-1";
+async function eliminarProveedor(id) {
+    const confirmado = await mostrarConfirmacion(
+        "¿Estás seguro de que deseas eliminar este proveedor?"
+    );
+    if (!confirmado) return;
 
-        tarjeta.innerHTML = `
-            <div>
-                ${imagenHtml}
+    const { error } = await supabaseClient
+        .from("proveedores")
+        .delete()
+        .eq("id", id);
 
-                <div class="flex items-center justify-between gap-2 mb-3">
-                    ${badgeHtml}
-                </div>
+    if (error) {
+        mostrarNotificacion("Error al eliminar proveedor: " + error.message, "error");
+        return;
+    }
 
-                <h3 class="text-base font-bold text-slate-100 leading-snug">
-                    ${escaparAtributo(prenda.nombre)}
-                </h3>
+    if (Number(proveedorEnEdicionId) === Number(id)) {
+        cancelarEdicionProveedor();
+    }
+
+    mostrarNotificacion("Proveedor eliminado.", "success");
+    await cargarProveedores();
+}
+
+/* ==========================================================================
+   PASO 8: CATÁLOGO PÚBLICO (index.html)
+   ========================================================================== */
+
+function renderizarCatalogoPublico(lista = []) {
+    const grid = document.getElementById("catalogoPublicoGrid");
+    if (!grid) return;
+
+    if (lista.length === 0) {
+        grid.innerHTML = `
+            <div class="col-span-full py-12 text-center text-slate-400">
+                <i data-lucide="sparkles" class="w-8 h-8 mx-auto mb-2 text-pink-400"></i>
+                <p class="font-medium">No se encontraron prendas disponibles.</p>
             </div>
+        `;
+        refrescarIconos();
+        return;
+    }
 
-            <div class="pt-4 mt-4 border-t border-slate-800/80 flex items-center justify-between">
+    grid.innerHTML = "";
 
-                <div>
-                    <p class="text-xs uppercase font-semibold tracking-wider text-slate-400">
-                        Precio
-                    </p>
+    lista.forEach(prenda => {
+        const urlImagen = obtenerUrlImagen(prenda.imagenes);
+        const disponible = (Number(prenda.cantidad) || 0) > 0;
 
-                    <p class="text-lg font-extrabold text-pink-400">
+        const card = document.createElement("div");
+        card.className = "neon-card rounded-2xl overflow-hidden border border-pink-500/25 flex flex-col justify-between transition hover:border-pink-400/60";
+
+        const mediaHtml = urlImagen
+            ? `<img src="${escaparAtributo(urlImagen)}" alt="${escaparAtributo(prenda.nombre)}" class="w-full h-64 object-cover" loading="lazy">`
+            : `<div class="w-full h-64 bg-slate-900/80 flex items-center justify-center border-b border-pink-500/15">
+                   <i data-lucide="shirt" class="w-12 h-12 text-pink-400/60"></i>
+               </div>`;
+
+        card.innerHTML = `
+            <div>
+                ${mediaHtml}
+                <div class="p-4 space-y-2">
+                    <h3 class="font-semibold text-slate-100 text-base leading-snug">
+                        ${escaparAtributo(prenda.nombre)}
+                    </h3>
+                    <p class="text-lg font-bold text-pink-400">
                         ${formatearLempiras(prenda.precio)}
                     </p>
                 </div>
-
-                <div class="w-8 h-8 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
-                    <i data-lucide="sparkles" class="w-4 h-4"></i>
-                </div>
-
+            </div>
+            <div class="px-4 pb-4 flex items-center justify-between">
+                <span class="text-xs px-2.5 py-1 rounded-full font-medium ${
+                    disponible
+                        ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                        : "bg-rose-500/15 text-rose-300 border border-rose-500/30"
+                }">
+                    ${disponible ? `${prenda.cantidad} disponibles` : "Agotado"}
+                </span>
             </div>
         `;
 
-        contenedor.appendChild(tarjeta);
+        grid.appendChild(card);
     });
 
     refrescarIconos();
 }
 
-function filtrarCatalogoPublico(termino) {
-    const query = String(termino || "")
-        .toLowerCase()
-        .trim();
+async function cargarCatalogoPublico() {
+    const grid = document.getElementById("catalogoPublicoGrid");
+    if (!grid) return;
 
-    if (!query) {
+    const { data: productos, error } = await supabaseClient
+        .from("productos")
+        .select("*")
+        .gt("cantidad", 0)
+        .order("id", { ascending: false });
+
+    if (error) {
+        console.error("Error al cargar catálogo público:", error);
+        return;
+    }
+
+    catalogoPrendasPublico = productos || [];
+    renderizarCatalogoPublico(catalogoPrendasPublico);
+}
+
+function filtrarCatalogoPublico(termino) {
+    const texto = String(termino || "").toLowerCase().trim();
+    if (!texto) {
         renderizarCatalogoPublico(catalogoPrendasPublico);
         return;
     }
 
-    const filtrados = catalogoPrendasPublico.filter(item =>
-        String(item.nombre || "")
-            .toLowerCase()
-            .includes(query)
+    const filtrados = catalogoPrendasPublico.filter(p =>
+        String(p.nombre || "").toLowerCase().includes(texto)
     );
-
     renderizarCatalogoPublico(filtrados);
 }
 
 /* ==========================================================================
-   PASO 10: FORMULARIOS Y EVENTOS
+   PASO 9: INICIALIZACIÓN AUTOMÁTICA POR PÁGINA
    ========================================================================== */
 
-function inicializarFormulariosYEventos() {
+document.addEventListener("DOMContentLoaded", () => {
+    refrescarIconos();
 
-    /* ----------------------------------------------------------------------
-       1. LOGIN
-       ---------------------------------------------------------------------- */
-
+    // Página de Login
     const loginForm = document.getElementById("loginForm");
-
-    if (loginForm && !loginForm.dataset.listenerAdjunto) {
-        loginForm.dataset.listenerAdjunto = "true";
-
-        loginForm.addEventListener("submit", async evento => {
-            evento.preventDefault();
-
-            const usuarioInput =
-                document.getElementById("usuario").value.trim();
-
-            const passwordInput =
-                document.getElementById("password").value.trim();
-
-            const btnLogin =
-                document.getElementById("btnLogin");
-
-            if (!usuarioInput || !passwordInput) {
-                mostrarNotificacion(
-                    "Por favor ingresa usuario y contraseña.",
-                    "error"
-                );
-                return;
-            }
-
-            if (btnLogin) {
-                btnLogin.disabled = true;
-
-                btnLogin.innerHTML = `
-                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
-                    <span>Verificando...</span>
-                `;
-
-                refrescarIconos();
-            }
-
-            try {
-                const { data: usuarioData, error: errorUsuario } =
-                    await supabaseClient
-                        .from("usuarios")
-                        .select("*")
-                        .eq("usuario", usuarioInput)
-                        .eq("password", passwordInput)
-                        .maybeSingle();
-
-                if (errorUsuario) {
-                    mostrarNotificacion(
-                        "Error al verificar credenciales: " +
-                        errorUsuario.message,
-                        "error"
-                    );
-
-                    restaurarBotonLogin();
-                    return;
-                }
-
-                if (!usuarioData) {
-                    const { count, error: countErr } =
-                        await supabaseClient
-                            .from("usuarios")
-                            .select("*", {
-                                count: "exact",
-                                head: true
-                            });
-
-                    if (
-                        !countErr &&
-                        count === 0 &&
-                        usuarioInput === "admin" &&
-                        passwordInput === "1234"
-                    ) {
-                        const { error: insErr } =
-                            await supabaseClient
-                                .from("usuarios")
-                                .insert([{
-                                    usuario: "admin",
-                                    password: "1234",
-                                    rol: "admin",
-                                    identidad: null
-                                }]);
-
-                        if (!insErr) {
-                            sessionStorage.setItem("usuario", "admin");
-                            sessionStorage.setItem("rol", "admin");
-                            sessionStorage.setItem("nombre", "Administrador Principal");
-
-                            mostrarNotificacion(
-                                "Administrador inicial registrado. Entrando...",
-                                "success"
-                            );
-
-                            setTimeout(() => {
-                                window.location.href = "inventario.html";
-                            }, 800);
-
-                            return;
-                        }
-                    }
-
-                    mostrarNotificacion(
-                        "Usuario o contraseña incorrectos.",
-                        "error"
-                    );
-
-                    restaurarBotonLogin();
-                    return;
-                }
-
-                let nombreMostrar = usuarioData.usuario;
-
-                if (usuarioData.identidad) {
-                    const { data: personalData } =
-                        await supabaseClient
-                            .from("personal")
-                            .select("nombres_apellidos")
-                            .eq("identidad", usuarioData.identidad)
-                            .maybeSingle();
-
-                    if (personalData?.nombres_apellidos) {
-                        nombreMostrar = personalData.nombres_apellidos;
-                    }
-                }
-
-                sessionStorage.setItem(
-                    "usuario",
-                    usuarioData.usuario
-                );
-
-                sessionStorage.setItem(
-                    "rol",
-                    usuarioData.rol
-                );
-
-                sessionStorage.setItem(
-                    "nombre",
-                    nombreMostrar
-                );
-
-                if (usuarioData.identidad) {
-                    sessionStorage.setItem(
-                        "identidad",
-                        usuarioData.identidad
-                    );
-                } else {
-                    sessionStorage.removeItem("identidad");
-                }
-
-                mostrarNotificacion(
-                    `¡Bienvenido/a, ${nombreMostrar}! (${obtenerNombreRol(usuarioData.rol)})`,
-                    "success"
-                );
-
-                setTimeout(() => {
-                    window.location.href = "inventario.html";
-                }, 800);
-
-            } catch (error) {
-                console.error("Error en login:", error);
-
-                mostrarNotificacion(
-                    "Error al iniciar sesión: " + error.message,
-                    "error"
-                );
-
-                restaurarBotonLogin();
-            }
-        });
+    if (loginForm) {
+        verificarSesionEnLogin();
+        loginForm.addEventListener("submit", iniciarSesion);
     }
 
-    /* ----------------------------------------------------------------------
-       2. FORMULARIO DE PRODUCTOS
-       ---------------------------------------------------------------------- */
+    // Página de Inventario
+    const productForm = document.getElementById("productForm");
+    if (document.getElementById("productTableBody")) {
+        if (protegerPagina(["admin", "encargado_inventario", "encargado_proveedores", "asesor"])) {
+            configurarSidebarYHeader();
+            aplicarPermisosInventario();
+            cargarInventario();
 
-    const productForm =
-        document.getElementById("productForm");
-
-    if (productForm && !productForm.dataset.listenerAdjunto) {
-        productForm.dataset.listenerAdjunto = "true";
-
-        productForm.addEventListener("submit", async evento => {
-            evento.preventDefault();
-
-            const rolActual = sessionStorage.getItem("rol");
-
-            if (
-                rolActual !== "admin" &&
-                rolActual !== "encargado_inventario"
-            ) {
-                mostrarNotificacion(
-                    "No tienes permiso para registrar ni editar prendas.",
-                    "error"
-                );
-                return;
-            }
-
-            const nombreIngresado =
-                document.getElementById("nombre").value.trim();
-
-            const cantidadIngresada =
-                Number(document.getElementById("cantidad").value);
-
-            const precioIngresado =
-                Number(document.getElementById("precio").value);
-
-            if (
-                !nombreIngresado ||
-                !Number.isFinite(cantidadIngresada) ||
-                cantidadIngresada < 0 ||
-                !Number.isFinite(precioIngresado) ||
-                precioIngresado < 0
-            ) {
-                mostrarNotificacion(
-                    "Verifica el nombre, la cantidad y el precio.",
-                    "error"
-                );
-                return;
-            }
-
-            const botonSubmit =
-                productForm.querySelector("button[type='submit']");
-
-            if (botonSubmit) botonSubmit.disabled = true;
-
-            try {
-                if (idProductoEditando === null) {
-
-                    // JSONB recibe un arreglo de URL, no una cadena.
-                    const nuevoProducto = {
-                        nombre: nombreIngresado,
-                        cantidad: cantidadIngresada,
-                        precio: precioIngresado,
-                        imagenes: imagenProductoGenerada
-                            ? [imagenProductoGenerada]
-                            : []
-                    };
-
-                    const { error } = await supabaseClient
-                        .from("productos")
-                        .insert([nuevoProducto]);
-
-                    if (error) throw error;
-
-                    mostrarNotificacion(
-                        "¡Prenda agregada al catálogo!",
-                        "success"
-                    );
-
-                } else {
-
-                    const productoActualizado = {
-                        nombre: nombreIngresado,
-                        cantidad: cantidadIngresada,
-                        precio: precioIngresado
-                    };
-
-                    /*
-                       Si se generó una fotografía nueva, se guarda como
-                       arreglo JSONB. Si no se generó otra, no se modifica
-                       imagenes y se conserva la fotografía existente.
-                    */
-
-                    if (imagenProductoGenerada) {
-                        productoActualizado.imagenes = [
-                            imagenProductoGenerada
-                        ];
-                    }
-
-                    const { error } = await supabaseClient
-                        .from("productos")
-                        .update(productoActualizado)
-                        .eq("id", idProductoEditando);
-
-                    if (error) throw error;
-
-                    mostrarNotificacion(
-                        "¡Prenda actualizada con éxito!",
-                        "success"
-                    );
-                }
-
-                cancelarEdicionProducto();
-
-                await cargarInventario();
-
-                if (document.getElementById("catalogoPublicoGrid")) {
-                    await cargarCatalogoPublico();
-                }
-
-            } catch (error) {
-                console.error("Error al guardar producto:", error);
-
-                mostrarNotificacion(
-                    "Error al guardar prenda: " + error.message,
-                    "error"
-                );
-
-            } finally {
-                if (botonSubmit) botonSubmit.disabled = false;
-            }
-        });
+            productForm?.addEventListener("submit", guardarProducto);
+            document.getElementById("btnGenerarFotografia")?.addEventListener("click", generarFotografiaProducto);
+            document.getElementById("btnCancelarEdicion")?.addEventListener("click", cancelarEdicionProducto);
+            document.getElementById("btnCargarEjemplos")?.addEventListener("click", cargarProductosEjemplo);
+        }
     }
 
-    /* ----------------------------------------------------------------------
-       3. BOTÓN PARA GENERAR FOTOGRAFÍA
-       ---------------------------------------------------------------------- */
-
-    const btnGenerarFotografia =
-        document.getElementById("btnGenerarFotografia");
-
-    if (
-        btnGenerarFotografia &&
-        !btnGenerarFotografia.dataset.listenerAdjunto
-    ) {
-        btnGenerarFotografia.dataset.listenerAdjunto = "true";
-
-        btnGenerarFotografia.addEventListener(
-            "click",
-            generarFotografiaProducto
-        );
+    // Página de Personal / Usuarios
+    const usuarioForm = document.getElementById("usuarioForm");
+    if (document.getElementById("usuariosTableBody")) {
+        if (protegerPagina(["admin"])) {
+            configurarSidebarYHeader();
+            cargarUsuarios();
+            usuarioForm?.addEventListener("submit", guardarUsuario);
+        }
     }
 
-    /* ----------------------------------------------------------------------
-       4. CANCELAR EDICIÓN DE PRODUCTO
-       ---------------------------------------------------------------------- */
-
-    const btnCancelarEdicion =
-        document.getElementById("btnCancelarEdicion");
-
-    if (
-        btnCancelarEdicion &&
-        !btnCancelarEdicion.dataset.listenerAdjunto
-    ) {
-        btnCancelarEdicion.dataset.listenerAdjunto = "true";
-
-        btnCancelarEdicion.addEventListener(
-            "click",
-            cancelarEdicionProducto
-        );
+    // Página de Proveedores
+    const proveedorForm = document.getElementById("proveedorForm");
+    if (document.getElementById("proveedoresTableBody")) {
+        if (protegerPagina(["admin", "encargado_proveedores"])) {
+            configurarSidebarYHeader();
+            cargarProveedores();
+            proveedorForm?.addEventListener("submit", guardarProveedor);
+            document.getElementById("btnCancelarEdicionProveedor")?.addEventListener("click", cancelarEdicionProveedor);
+        }
     }
 
-    /* ----------------------------------------------------------------------
-       5. FORMULARIO DE PERSONAL
-       ---------------------------------------------------------------------- */
-
-    const personalForm =
-        document.getElementById("personalForm");
-
-    if (personalForm && !personalForm.dataset.listenerAdjunto) {
-        personalForm.dataset.listenerAdjunto = "true";
-
-        personalForm.addEventListener("submit", async e => {
-            e.preventDefault();
-
-            if (sessionStorage.getItem("rol") !== "admin") {
-                mostrarNotificacion(
-                    "Solo el Administrador puede registrar colaboradores.",
-                    "error"
-                );
-                return;
-            }
-
-            const nuevoColaborador = {
-                identidad: document.getElementById("identidad").value.trim(),
-                nombres_apellidos: document.getElementById("nombres_apellidos").value.trim(),
-                genero: document.getElementById("genero").value,
-                telefono: document.getElementById("telefono").value.trim(),
-                direccion: document.getElementById("direccion").value.trim()
-            };
-
-            const { error } = await supabaseClient
-                .from("personal")
-                .insert([nuevoColaborador]);
-
-            if (error) {
-                mostrarNotificacion(
-                    "Error al registrar colaborador: " + error.message,
-                    "error"
-                );
-                return;
-            }
-
-            mostrarNotificacion(
-                "¡Colaborador registrado correctamente!",
-                "success"
-            );
-
-            personalForm.reset();
-
-            await cargarPersonal();
-            await cargarSelectEmpleados();
-        });
-    }
-
-    /* ----------------------------------------------------------------------
-       6. FORMULARIO DE CREAR USUARIOS
-       ---------------------------------------------------------------------- */
-
-    const usuarioForm =
-        document.getElementById("usuarioForm");
-
-    if (usuarioForm && !usuarioForm.dataset.listenerAdjunto) {
-        usuarioForm.dataset.listenerAdjunto = "true";
-
-        usuarioForm.addEventListener("submit", async e => {
-            e.preventDefault();
-
-            if (sessionStorage.getItem("rol") !== "admin") {
-                mostrarNotificacion(
-                    "Solo el Administrador puede registrar usuarios.",
-                    "error"
-                );
-                return;
-            }
-
-            const usuarioVal =
-                document.getElementById("nuevoUsuario").value.trim();
-
-            const passwordVal =
-                document.getElementById("nuevoPassword").value.trim();
-
-            const rolVal =
-                document.getElementById("nuevoRol").value;
-
-            const identidadSelect =
-                document.getElementById("nuevoEmpleadoIdentidad");
-
-            const identidadVal =
-                identidadSelect?.value.trim() || null;
-
-            if (!usuarioVal || !passwordVal || !rolVal) {
-                mostrarNotificacion(
-                    "Completa los campos obligatorios del usuario.",
-                    "error"
-                );
-                return;
-            }
-
-            const nuevoUsuarioObj = {
-                usuario: usuarioVal,
-                password: passwordVal,
-                rol: rolVal,
-                identidad: identidadVal
-            };
-
-            const { error } = await supabaseClient
-                .from("usuarios")
-                .insert([nuevoUsuarioObj]);
-
-            if (error) {
-                mostrarNotificacion(
-                    "Error al crear usuario: " + error.message,
-                    "error"
-                );
-                return;
-            }
-
-            mostrarNotificacion(
-                `¡Cuenta "${usuarioVal}" creada exitosamente!`,
-                "success"
-            );
-
-            usuarioForm.reset();
-
-            await cargarUsuarios();
-        });
-    }
-
-    /* ----------------------------------------------------------------------
-       7. FORMULARIO DE PROVEEDORES
-       ---------------------------------------------------------------------- */
-
-    const proveedoresForm =
-        document.getElementById("proveedoresForm");
-
-    if (proveedoresForm && !proveedoresForm.dataset.listenerAdjunto) {
-        proveedoresForm.dataset.listenerAdjunto = "true";
-
-        proveedoresForm.addEventListener("submit", async e => {
-            e.preventDefault();
-
-            const rolActual = sessionStorage.getItem("rol");
-
-            if (
-                rolActual !== "admin" &&
-                rolActual !== "encargado_proveedores"
-            ) {
-                mostrarNotificacion(
-                    "No tienes permiso para gestionar proveedores.",
-                    "error"
-                );
-                return;
-            }
-
-            const proveedor = {
-                empresa: document.getElementById("empresa").value.trim(),
-                encargado: document.getElementById("encargado").value.trim(),
-                telefono: document.getElementById("telefono_prov").value.trim(),
-                direccion: document.getElementById("direccion_prov").value.trim(),
-                correo: document.getElementById("correo").value.trim()
-            };
-
-            let resultado;
-
-            if (proveedorEnEdicionId !== null) {
-                resultado = await supabaseClient
-                    .from("proveedores")
-                    .update(proveedor)
-                    .eq("codigo", proveedorEnEdicionId);
-            } else {
-                resultado = await supabaseClient
-                    .from("proveedores")
-                    .insert([proveedor]);
-            }
-
-            if (resultado.error) {
-                mostrarNotificacion(
-                    "Error al guardar proveedor: " + resultado.error.message,
-                    "error"
-                );
-                return;
-            }
-
-            mostrarNotificacion(
-                proveedorEnEdicionId !== null
-                    ? "Proveedor actualizado correctamente."
-                    : "Proveedor registrado correctamente.",
-                "success"
-            );
-
-            cancelarEdicionProveedor();
-
-            await cargarProveedores();
-        });
-    }
-
-    /* ----------------------------------------------------------------------
-       8. BOTONES DE EDITAR Y ELIMINAR PROVEEDORES
-       ---------------------------------------------------------------------- */
-
-    const proveedoresTableBody =
-        document.getElementById("proveedoresTableBody");
-
-    if (
-        proveedoresTableBody &&
-        !proveedoresTableBody.dataset.listenerAdjunto
-    ) {
-        proveedoresTableBody.dataset.listenerAdjunto = "true";
-
-        proveedoresTableBody.addEventListener("click", async e => {
-            const boton = e.target.closest("button[data-accion]");
-
-            if (!boton) return;
-
-            const rolActual = sessionStorage.getItem("rol");
-
-            if (
-                rolActual !== "admin" &&
-                rolActual !== "encargado_proveedores"
-            ) {
-                mostrarNotificacion(
-                    "No tienes permisos para modificar proveedores.",
-                    "error"
-                );
-                return;
-            }
-
-            const codigo = boton.dataset.id;
-            const accion = boton.dataset.accion;
-
-            if (accion === "editar") {
-                const { data, error } = await supabaseClient
-                    .from("proveedores")
-                    .select("*")
-                    .eq("codigo", codigo)
-                    .single();
-
-                if (error) {
-                    mostrarNotificacion(
-                        "Error al buscar proveedor: " + error.message,
-                        "error"
-                    );
-                    return;
-                }
-
-                proveedorEnEdicionId = codigo;
-
-                document.getElementById("empresa").value =
-                    data.empresa || "";
-
-                document.getElementById("encargado").value =
-                    data.encargado || "";
-
-                document.getElementById("telefono_prov").value =
-                    data.telefono || "";
-
-                document.getElementById("direccion_prov").value =
-                    data.direccion || "";
-
-                document.getElementById("correo").value =
-                    data.correo || "";
-
-                const titulo =
-                    document.getElementById("tituloProveedor");
-
-                if (titulo) {
-                    titulo.textContent = "Editar proveedor";
-                }
-
-                const botonGuardar =
-                    document.getElementById("btnGuardarProveedor");
-
-                if (botonGuardar) {
-                    botonGuardar.innerHTML = `
-                        <i data-lucide="save" class="w-4 h-4"></i>
-                        <span>Actualizar proveedor</span>
-                    `;
-                }
-
-                document.getElementById("btnCancelarProveedor")
-                    ?.classList.remove("hidden");
-
-                refrescarIconos();
-            }
-
-            if (accion === "eliminar") {
-                const confirmar = await mostrarConfirmacion(
-                    "¿Estás seguro de eliminar este proveedor?"
-                );
-
-                if (!confirmar) return;
-
-                const { error } = await supabaseClient
-                    .from("proveedores")
-                    .delete()
-                    .eq("codigo", codigo);
-
-                if (error) {
-                    mostrarNotificacion(
-                        "Error al eliminar proveedor: " + error.message,
-                        "error"
-                    );
-                    return;
-                }
-
-                mostrarNotificacion(
-                    "Proveedor eliminado correctamente.",
-                    "success"
-                );
-
-                await cargarProveedores();
-            }
-        });
-    }
-
-    /* ----------------------------------------------------------------------
-       9. CANCELAR EDICIÓN DE PROVEEDOR
-       ---------------------------------------------------------------------- */
-
-    const btnCancelarProveedor =
-        document.getElementById("btnCancelarProveedor");
-
-    if (
-        btnCancelarProveedor &&
-        !btnCancelarProveedor.dataset.listenerAdjunto
-    ) {
-        btnCancelarProveedor.dataset.listenerAdjunto = "true";
-
-        btnCancelarProveedor.addEventListener(
-            "click",
-            cancelarEdicionProveedor
-        );
-    }
-
-    /* ----------------------------------------------------------------------
-       10. BUSCADOR DEL CATÁLOGO PÚBLICO
-       ---------------------------------------------------------------------- */
-
-    const inputBusquedaCatalogo =
-        document.getElementById("inputBusquedaCatalogo");
-
-    if (
-        inputBusquedaCatalogo &&
-        !inputBusquedaCatalogo.dataset.listenerAdjunto
-    ) {
-        inputBusquedaCatalogo.dataset.listenerAdjunto = "true";
-
-        inputBusquedaCatalogo.addEventListener("input", e => {
+    // Catálogo Público
+    if (document.getElementById("catalogoPublicoGrid")) {
+        cargarCatalogoPublico();
+        document.getElementById("buscadorCatalogoPublico")?.addEventListener("input", (e) => {
             filtrarCatalogoPublico(e.target.value);
         });
     }
-}
 
-/* ==========================================================================
-   PASO 11: INICIALIZACIÓN GENERAL DEL SISTEMA
-   ========================================================================== */
-
-function inicializarSistema() {
-    refrescarIconos();
-
-    inicializarFormulariosYEventos();
-
-    configurarSidebarYHeader();
-
-    aplicarPermisosInventario();
-
-    if (document.getElementById("catalogoPublicoGrid")) {
-        cargarCatalogoPublico();
-    }
-
-    if (document.getElementById("productTableBody")) {
-        cargarInventario();
-    }
-
-    if (document.getElementById("personalTableBody")) {
-        cargarPersonal();
-    }
-
-    if (document.getElementById("usuariosTableBody")) {
-        cargarUsuarios();
-        cargarSelectEmpleados();
-    }
-
-    if (document.getElementById("proveedoresTableBody")) {
-        cargarProveedores();
-    }
-}
-
-/* ==========================================================================
-   INICIO DEL SISTEMA
-   ========================================================================== */
-
-if (document.readyState === "loading") {
-    document.addEventListener(
-        "DOMContentLoaded",
-        inicializarSistema
-    );
-} else {
-    inicializarSistema();
-}
-
+    // Botón global de cerrar sesión
+    document.getElementById("btnCerrarSesion")?.addEventListener("click", cerrarSesion);
+    document.getElementById("btnCerrarSesionMobile")?.addEventListener("click", cerrarSesion);
+});
 

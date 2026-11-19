@@ -1,36 +1,47 @@
+
 /* ==========================================================================
    BOUTIQUE LOS ING'S - SISTEMA WEB INTEGRAL
-   Conexión a Supabase, Autenticación RBAC, Inventario, Personal y Proveedores
+   Supabase, autenticación, inventario, fotografías IA,
+   personal, usuarios, proveedores y catálogo público.
    ========================================================================== */
 
 /* ==========================================================================
    PASO 1: CONEXIÓN A SUPABASE
    ========================================================================== */
+
 const SUPABASE_URL = "https://nlcegrldtsnafytvvaqi.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_isjSuro7NLTxsilu6-VL2Q_aHn6GqvY";
 
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY
+);
 
 let idProductoEditando = null;
 let proveedorEnEdicionId = null;
 let catalogoPrendasPublico = [];
+let productosInventarioActuales = [];
+let imagenProductoGenerada = null;
 
 /* ==========================================================================
-   PASO 2: UTILIDADES GLOBALES (ICONOS LUCIDE Y MONEDA)
+   PASO 2: UTILIDADES GENERALES
    ========================================================================== */
+
 function refrescarIconos() {
-    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    if (window.lucide && typeof window.lucide.createIcons === "function") {
         window.lucide.createIcons({
-            attrs: {
-                'stroke-width': 1.75
-            }
+            attrs: { "stroke-width": 1.75 }
         });
     }
 }
 
 function formatearLempiras(monto) {
     const numero = Number(monto) || 0;
-    return `L ${numero.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    return `L ${numero.toLocaleString("es-HN", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    })}`;
 }
 
 function escaparAtributo(valor) {
@@ -42,28 +53,36 @@ function escaparAtributo(valor) {
         .replace(/>/g, "&gt;");
 }
 
-/* ==========================================================================
-   NOTIFICACIONES VISUALES NEÓN Y MODAL DE CONFIRMACIÓN
-   ========================================================================== */
 function mostrarNotificacion(mensaje, tipo = "success") {
     const notificacion = document.createElement("div");
-    
-    const colorFondo = tipo === "success" 
-        ? "bg-slate-900/95 border-pink-400/50 text-pink-200 shadow-pink-500/20" 
+
+    const colorFondo = tipo === "success"
+        ? "bg-slate-900/95 border-pink-400/50 text-pink-200 shadow-pink-500/20"
         : "bg-slate-900/95 border-rose-500/50 text-rose-200 shadow-rose-500/20";
-    
-    const iconoLucide = tipo === "success" ? "check-circle-2" : "alert-triangle";
-    const iconoColor = tipo === "success" ? "text-emerald-400" : "text-rose-400";
-    
-    notificacion.className = `fixed bottom-5 right-5 z-50 px-4 py-3.5 rounded-2xl border shadow-2xl backdrop-blur-md text-sm font-medium transition-all duration-300 flex items-center gap-2.5 ${colorFondo}`;
-    notificacion.innerHTML = `<i data-lucide="${iconoLucide}" class="w-5 h-5 shrink-0 ${iconoColor}"></i> <span class="leading-snug">${mensaje}</span>`;
-    
+
+    const icono = tipo === "success"
+        ? "check-circle-2"
+        : "alert-triangle";
+
+    const iconoColor = tipo === "success"
+        ? "text-emerald-400"
+        : "text-rose-400";
+
+    notificacion.className =
+        `fixed bottom-5 right-5 z-50 px-4 py-3.5 rounded-2xl border shadow-2xl backdrop-blur-md text-sm font-medium transition-all duration-300 flex items-center gap-2.5 ${colorFondo}`;
+
+    notificacion.innerHTML = `
+        <i data-lucide="${icono}" class="w-5 h-5 shrink-0 ${iconoColor}"></i>
+        <span class="leading-snug">${escaparAtributo(mensaje)}</span>
+    `;
+
     document.body.appendChild(notificacion);
     refrescarIconos();
 
     setTimeout(() => {
         notificacion.style.opacity = "0";
         notificacion.style.transform = "translateY(8px)";
+
         setTimeout(() => notificacion.remove(), 300);
     }, 3200);
 }
@@ -71,35 +90,58 @@ function mostrarNotificacion(mensaje, tipo = "success") {
 function mostrarConfirmacion(mensaje, textoConfirmar = null) {
     return new Promise((resolve) => {
         const overlay = document.createElement("div");
-        overlay.className = "fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4";
 
-        const esEliminar = textoConfirmar 
+        overlay.className =
+            "fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4";
+
+        const esEliminar = textoConfirmar
             ? textoConfirmar.toLowerCase().includes("eliminar")
-            : (mensaje.toLowerCase().includes("eliminar") || mensaje.toLowerCase().includes("retirar"));
+            : (
+                mensaje.toLowerCase().includes("eliminar") ||
+                mensaje.toLowerCase().includes("retirar")
+            );
 
-        const btnTexto = textoConfirmar || (esEliminar ? "Eliminar" : "Confirmar");
+        const btnTexto = textoConfirmar ||
+            (esEliminar ? "Eliminar" : "Confirmar");
+
         const btnIcono = esEliminar ? "trash-2" : "check";
         const modalIcono = esEliminar ? "alert-triangle" : "sparkles";
-        const btnClase = esEliminar 
-            ? "bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30" 
+
+        const btnClase = esEliminar
+            ? "bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30"
             : "neon-btn text-white";
 
         overlay.innerHTML = `
             <div class="neon-card p-6 rounded-2xl max-w-sm w-full border border-pink-500/35 shadow-2xl space-y-4 text-center">
+
                 <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-500/15 border border-pink-500/35 flex items-center justify-center text-pink-400">
                     <i data-lucide="${modalIcono}" class="w-6 h-6"></i>
                 </div>
-                <h3 class="text-lg font-bold text-pink-400 neon-title">Confirmar acción</h3>
-                <p class="text-sm text-slate-300 leading-relaxed">${mensaje}</p>
+
+                <h3 class="text-lg font-bold text-pink-400 neon-title">
+                    Confirmar acción
+                </h3>
+
+                <p class="text-sm text-slate-300 leading-relaxed">
+                    ${escaparAtributo(mensaje)}
+                </p>
+
                 <div class="flex gap-3 justify-center pt-2">
-                    <button id="btnModalCancelar" type="button" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white text-sm font-medium transition flex items-center justify-center gap-1.5">
+
+                    <button id="btnModalCancelar" type="button"
+                        class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 text-sm font-medium transition flex items-center justify-center gap-1.5">
+
                         <i data-lucide="x" class="w-4 h-4"></i>
                         <span>Cancelar</span>
                     </button>
-                    <button id="btnModalConfirmar" type="button" class="flex-1 py-2.5 px-4 rounded-xl border ${btnClase} text-sm font-semibold transition flex items-center justify-center gap-1.5 shadow-lg">
+
+                    <button id="btnModalConfirmar" type="button"
+                        class="flex-1 py-2.5 px-4 rounded-xl border ${btnClase} text-sm font-semibold transition flex items-center justify-center gap-1.5 shadow-lg">
+
                         <i data-lucide="${btnIcono}" class="w-4 h-4"></i>
-                        <span>${btnTexto}</span>
+                        <span>${escaparAtributo(btnTexto)}</span>
                     </button>
+
                 </div>
             </div>
         `;
@@ -107,33 +149,220 @@ function mostrarConfirmacion(mensaje, textoConfirmar = null) {
         document.body.appendChild(overlay);
         refrescarIconos();
 
-        overlay.querySelector("#btnModalCancelar").addEventListener("click", () => {
-            overlay.remove();
-            resolve(false);
-        });
+        overlay.querySelector("#btnModalCancelar")
+            .addEventListener("click", () => {
+                overlay.remove();
+                resolve(false);
+            });
 
-        overlay.querySelector("#btnModalConfirmar").addEventListener("click", () => {
-            overlay.remove();
-            resolve(true);
-        });
+        overlay.querySelector("#btnModalConfirmar")
+            .addEventListener("click", () => {
+                overlay.remove();
+                resolve(true);
+            });
     });
 }
 
 /* ==========================================================================
-   PASO 3: CONTROL DE ACCESO POR ROLES (RBAC) Y SESIÓN
-   Roles permitidos: admin, encargado_inventario, encargado_proveedores, asesor
+   PASO 3: GENERACIÓN DE FOTOGRAFÍAS CON INTELIGENCIA ARTIFICIAL
+   Supabase Edge Function: generar-fotos
+   Bucket: fotos-productos
+   ========================================================================== */
+
+/*
+   La columna imagenes de Supabase es JSONB.
+   Se admiten arreglos de URL, cadenas JSON y objetos con URL.
+*/
+
+function obtenerUrlImagen(imagenes) {
+    if (!imagenes) return null;
+
+    if (Array.isArray(imagenes)) {
+        for (const imagen of imagenes) {
+            if (typeof imagen === "string" && imagen.startsWith("http")) {
+                return imagen;
+            }
+
+            if (imagen && typeof imagen === "object") {
+                const url = imagen.url || imagen.imagen_url;
+
+                if (typeof url === "string" && url.startsWith("http")) {
+                    return url;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    if (typeof imagenes === "string") {
+        try {
+            const resultado = JSON.parse(imagenes);
+
+            if (resultado !== imagenes) {
+                return obtenerUrlImagen(resultado);
+            }
+        } catch {
+            return imagenes.startsWith("http")
+                ? imagenes
+                : null;
+        }
+
+        return null;
+    }
+
+    if (typeof imagenes === "object") {
+        const url = imagenes.url || imagenes.imagen_url;
+
+        return typeof url === "string" && url.startsWith("http")
+            ? url
+            : null;
+    }
+
+    return null;
+}
+
+function limpiarImagenProducto() {
+    imagenProductoGenerada = null;
+
+    const contenedor = document.getElementById("contenedorVistaPrevia");
+    const vistaPrevia = document.getElementById("vistaPreviaProducto");
+    const descripcion = document.getElementById("descripcionImagen");
+    const estado = document.getElementById("estadoGeneracionImagen");
+
+    if (contenedor) contenedor.classList.add("hidden");
+    if (vistaPrevia) vistaPrevia.src = "";
+    if (descripcion) descripcion.value = "";
+    if (estado) estado.textContent = "";
+}
+
+async function generarFotografiaProducto() {
+    const nombre = document.getElementById("nombre")?.value.trim();
+    const descripcion =
+        document.getElementById("descripcionImagen")?.value.trim() || "";
+
+    const boton = document.getElementById("btnGenerarFotografia");
+    const estado = document.getElementById("estadoGeneracionImagen");
+    const contenedor = document.getElementById("contenedorVistaPrevia");
+    const vistaPrevia = document.getElementById("vistaPreviaProducto");
+
+    const rolActual = sessionStorage.getItem("rol");
+
+    if (rolActual !== "admin" && rolActual !== "encargado_inventario") {
+        mostrarNotificacion(
+            "No tienes permiso para generar fotografías.",
+            "error"
+        );
+        return;
+    }
+
+    if (!nombre) {
+        mostrarNotificacion(
+            "Primero escribe el nombre de la prenda.",
+            "error"
+        );
+
+        document.getElementById("nombre")?.focus();
+        return;
+    }
+
+    if (!boton || !estado || !contenedor || !vistaPrevia) {
+        mostrarNotificacion(
+            "No se encontraron los elementos de fotografía en inventario.html.",
+            "error"
+        );
+        return;
+    }
+
+    boton.disabled = true;
+
+    boton.innerHTML = `
+        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+        <span>Generando fotografía...</span>
+    `;
+
+    estado.textContent = "Generando fotografía. Espera un momento...";
+    refrescarIconos();
+
+    try {
+        const { data, error } = await supabaseClient.functions.invoke(
+            "generar-fotos",
+            {
+                body: {
+                    nombreProducto: nombre,
+                    descripcion: descripcion
+                }
+            }
+        );
+
+        if (error) {
+            console.error("Error al llamar generar-fotos:", error);
+
+            throw new Error(
+                error.message || "No se pudo comunicar con el servicio."
+            );
+        }
+
+        if (!data || !data.imagen_url) {
+            throw new Error(
+                data?.error || "No se recibió la fotografía."
+            );
+        }
+
+        imagenProductoGenerada = data.imagen_url;
+
+        vistaPrevia.src = imagenProductoGenerada;
+        contenedor.classList.remove("hidden");
+
+        estado.textContent =
+            "Fotografía generada correctamente. Se guardará al guardar la prenda.";
+
+        mostrarNotificacion(
+            "Fotografía generada correctamente.",
+            "success"
+        );
+
+    } catch (error) {
+        console.error("Error al generar fotografía:", error);
+
+        estado.textContent =
+            error.message || "Error al generar fotografía.";
+
+        mostrarNotificacion(
+            error.message || "No se pudo generar la fotografía.",
+            "error"
+        );
+
+    } finally {
+        boton.disabled = false;
+
+        boton.innerHTML = `
+            <i data-lucide="image-plus" class="w-4 h-4"></i>
+            <span>Generar fotografía con IA</span>
+        `;
+
+        refrescarIconos();
+    }
+}
+
+/* ==========================================================================
+   PASO 4: CONTROL DE ACCESO Y SESIÓN
    ========================================================================== */
 
 function obtenerNombreRol(rol) {
     switch (rol) {
         case "admin":
             return "Administrador";
+
         case "encargado_inventario":
             return "Encargado de Inventario";
+
         case "encargado_proveedores":
             return "Encargado de Proveedores";
+
         case "asesor":
             return "Asesor de Moda";
+
         default:
             return rol || "Usuario";
     }
@@ -148,17 +377,16 @@ function protegerPagina(rolesPermitidos = []) {
         return false;
     }
 
-    if (rolesPermitidos.length > 0 && !rolesPermitidos.includes(rol)) {
+    if (
+        rolesPermitidos.length > 0 &&
+        !rolesPermitidos.includes(rol)
+    ) {
         let destino = "inventario.html";
+
         if (rol === "encargado_proveedores") {
             destino = "proveedores.html";
-        } else if (rol === "encargado_inventario" || rol === "asesor") {
-            destino = "inventario.html";
-        } else if (rol === "admin") {
-            destino = "inventario.html";
-        } else {
-            destino = "login.html";
         }
+
         window.location.replace(destino);
         return false;
     }
@@ -169,6 +397,7 @@ function protegerPagina(rolesPermitidos = []) {
 function verificarSesionEnLogin() {
     const usuario = sessionStorage.getItem("usuario");
     const rol = sessionStorage.getItem("rol");
+
     if (usuario && rol) {
         if (rol === "encargado_proveedores") {
             window.location.replace("proveedores.html");
@@ -188,33 +417,44 @@ function configurarSidebarYHeader() {
     const rol = sessionStorage.getItem("rol");
     const nombre = sessionStorage.getItem("nombre") || usuario;
 
-    // Actualizar encabezado si existen los elementos
-    const elHeaderNombre = document.getElementById("headerUsuarioNombre");
-    const elHeaderRol = document.getElementById("headerUsuarioRol");
+    const elHeaderNombre =
+        document.getElementById("headerUsuarioNombre");
+
+    const elHeaderRol =
+        document.getElementById("headerUsuarioRol");
+
     if (elHeaderNombre && usuario) {
         elHeaderNombre.textContent = nombre;
     }
+
     if (elHeaderRol && rol) {
         elHeaderRol.textContent = obtenerNombreRol(rol);
     }
 
-    // Filtrar enlaces del sidebar y menú móvil según el rol
     if (rol) {
-        const linkPersonal = document.getElementById("linkNavPersonal");
-        const linkPersonalMobile = document.getElementById("linkNavPersonalMobile");
-        const linkProveedores = document.getElementById("linkNavProveedores");
-        const linkProveedoresMobile = document.getElementById("linkNavProveedoresMobile");
+        const linkPersonal =
+            document.getElementById("linkNavPersonal");
 
-        // Solo admin puede acceder a personal
+        const linkPersonalMobile =
+            document.getElementById("linkNavPersonalMobile");
+
+        const linkProveedores =
+            document.getElementById("linkNavProveedores");
+
+        const linkProveedoresMobile =
+            document.getElementById("linkNavProveedoresMobile");
+
         if (rol !== "admin") {
-            if (linkPersonal) linkPersonal.classList.add("hidden");
-            if (linkPersonalMobile) linkPersonalMobile.classList.add("hidden");
+            linkPersonal?.classList.add("hidden");
+            linkPersonalMobile?.classList.add("hidden");
         }
 
-        // Solo admin y encargado_proveedores pueden acceder a proveedores
-        if (rol !== "admin" && rol !== "encargado_proveedores") {
-            if (linkProveedores) linkProveedores.classList.add("hidden");
-            if (linkProveedoresMobile) linkProveedoresMobile.classList.add("hidden");
+        if (
+            rol !== "admin" &&
+            rol !== "encargado_proveedores"
+        ) {
+            linkProveedores?.classList.add("hidden");
+            linkProveedoresMobile?.classList.add("hidden");
         }
     }
 }
@@ -223,54 +463,90 @@ function aplicarPermisosInventario() {
     const rol = sessionStorage.getItem("rol");
     if (!rol) return;
 
-    const esSoloLectura = (rol === "encargado_proveedores" || rol === "asesor");
+    const esSoloLectura =
+        rol === "encargado_proveedores" ||
+        rol === "asesor";
 
-    const colFormulario = document.getElementById("columnaFormularioInventario");
-    const colTabla = document.getElementById("columnaTablaInventario");
-    const bannerLectura = document.getElementById("bannerSoloLecturaInventario");
-    const btnEjemplos = document.getElementById("btnCargarEjemplos");
-    const thAcciones = document.getElementById("thAccionesInventario");
+    const colFormulario =
+        document.getElementById("columnaFormularioInventario");
+
+    const colTabla =
+        document.getElementById("columnaTablaInventario");
+
+    const bannerLectura =
+        document.getElementById("bannerSoloLecturaInventario");
+
+    const btnEjemplos =
+        document.getElementById("btnCargarEjemplos");
+
+    const thAcciones =
+        document.getElementById("thAccionesInventario");
 
     if (esSoloLectura) {
-        if (colFormulario) {
-            colFormulario.classList.add("hidden");
-        }
+        colFormulario?.classList.add("hidden");
+
         if (colTabla) {
             colTabla.classList.remove("lg:col-span-2");
             colTabla.classList.add("lg:col-span-3", "w-full");
         }
-        if (bannerLectura) {
-            bannerLectura.classList.remove("hidden");
-        }
-        if (btnEjemplos) {
-            btnEjemplos.classList.add("hidden");
-        }
+
+        bannerLectura?.classList.remove("hidden");
+        btnEjemplos?.classList.add("hidden");
+
         if (thAcciones) {
-            thAcciones.innerHTML = `<span>Permiso</span>`;
+            thAcciones.innerHTML = "<span>Permiso</span>";
         }
     }
 }
 
 function restaurarBotonLogin() {
     const btnLogin = document.getElementById("btnLogin");
+
     if (btnLogin) {
         btnLogin.disabled = false;
-        btnLogin.innerHTML = `<i data-lucide="log-in" class="w-4 h-4"></i> <span>Entrar al Panel de la Boutique</span>`;
+
+        btnLogin.innerHTML = `
+            <i data-lucide="log-in" class="w-4 h-4"></i>
+            <span>Entrar al Panel de la Boutique</span>
+        `;
+
         refrescarIconos();
     }
 }
 
 /* ==========================================================================
-   PASO 4: MÓDULO DE INVENTARIO (TABLA: productos)
+   PASO 5: MÓDULO DE INVENTARIO
+   Tabla: productos
+   Columnas: id, nombre, cantidad, precio, creado_en, imagenes
+   imagenes: JSONB
    ========================================================================== */
+
 function actualizarResumenInventario(productos = []) {
-    const elTotal = document.getElementById("statTotalProductos");
-    const elStock = document.getElementById("statUnidadesStock");
-    const elValor = document.getElementById("statValorInventario");
+    const elTotal =
+        document.getElementById("statTotalProductos");
+
+    const elStock =
+        document.getElementById("statUnidadesStock");
+
+    const elValor =
+        document.getElementById("statValorInventario");
 
     const totalProductos = productos.length;
-    const totalUnidades = productos.reduce((acc, item) => acc + (Number(item.cantidad) || 0), 0);
-    const valorTotal = productos.reduce((acc, item) => acc + ((Number(item.cantidad) || 0) * (Number(item.precio) || 0)), 0);
+
+    const totalUnidades = productos.reduce(
+        (acc, item) => acc + (Number(item.cantidad) || 0),
+        0
+    );
+
+    const valorTotal = productos.reduce(
+        (acc, item) =>
+            acc +
+            (
+                (Number(item.cantidad) || 0) *
+                (Number(item.precio) || 0)
+            ),
+        0
+    );
 
     if (elTotal) elTotal.textContent = totalProductos;
     if (elStock) elStock.textContent = totalUnidades;
@@ -278,218 +554,350 @@ function actualizarResumenInventario(productos = []) {
 }
 
 async function cargarInventario() {
-    const tableBody = document.getElementById("productTableBody");
+    const tableBody =
+        document.getElementById("productTableBody");
+
     if (!tableBody) return;
 
     tableBody.innerHTML = `
         <tr>
             <td colspan="4" class="py-10 text-center text-slate-400">
-                <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-800/60 border border-pink-500/25 text-pink-300 text-xs font-medium">
-                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-pink-400"></i>
-                    <span>Cargando catálogo de prendas desde Supabase...</span>
-                </div>
+                <i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>
+                Cargando catálogo de prendas...
             </td>
         </tr>
     `;
+
     refrescarIconos();
 
-    console.log("Cargando inventario de productos desde Supabase...");
     const { data: productos, error } = await supabaseClient
-        .from('productos')
-        .select('*')
-        .order('id', { ascending: false });
-
-    console.log("Resultado carga inventario:", productos, "Error:", error);
+        .from("productos")
+        .select("*")
+        .order("id", { ascending: false });
 
     if (error) {
         console.error("Error al cargar inventario:", error);
-        mostrarNotificacion("Error al cargar el catálogo: " + error.message, "error");
+
+        mostrarNotificacion(
+            "Error al cargar el catálogo: " + error.message,
+            "error"
+        );
+
         tableBody.innerHTML = `
             <tr>
                 <td colspan="4" class="py-8 text-center text-rose-400">
-                    <div class="inline-flex items-center gap-2">
-                        <i data-lucide="alert-triangle" class="w-4 h-4"></i>
-                        <span>Error al cargar el catálogo de prendas.</span>
-                    </div>
+                    Error al cargar el catálogo de prendas.
                 </td>
             </tr>
         `;
-        refrescarIconos();
+
         actualizarResumenInventario([]);
         return;
     }
 
-    actualizarResumenInventario(productos || []);
+    productosInventarioActuales = productos || [];
 
-    if (!productos || productos.length === 0) {
+    actualizarResumenInventario(productosInventarioActuales);
+
+    if (productosInventarioActuales.length === 0) {
         tableBody.innerHTML = `
             <tr>
                 <td colspan="4" class="py-10 text-center text-slate-400">
-                    <div class="space-y-2">
-                        <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
-                            <i data-lucide="package-open" class="w-6 h-6"></i>
-                        </div>
-                        <p class="font-medium text-slate-300">No hay prendas registradas aún</p>
-                        <p class="text-xs text-slate-500">Usa el formulario para agregar la primera prenda al catálogo.</p>
-                    </div>
+                    <i data-lucide="package-open" class="w-6 h-6 mx-auto mb-2"></i>
+                    <p class="font-medium">No hay prendas registradas aún</p>
+                    <p class="text-xs">Usa el formulario para agregar la primera prenda.</p>
                 </td>
             </tr>
         `;
+
         refrescarIconos();
         return;
     }
 
     const rolActual = sessionStorage.getItem("rol");
-    const esSoloLectura = (rolActual === "encargado_proveedores" || rolActual === "asesor");
+
+    const esSoloLectura =
+        rolActual === "encargado_proveedores" ||
+        rolActual === "asesor";
 
     tableBody.innerHTML = "";
 
-    productos.forEach(producto => {
+    productosInventarioActuales.forEach(producto => {
         const fila = document.createElement("tr");
-        fila.className = "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors duration-150";
+
+        fila.className =
+            "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors duration-150";
+
+        const urlImagen = obtenerUrlImagen(producto.imagenes);
+
+        const imagenHtml = urlImagen
+            ? `
+                <img
+                    src="${escaparAtributo(urlImagen)}"
+                    alt="${escaparAtributo(producto.nombre)}"
+                    class="w-12 h-12 object-cover rounded-lg border border-pink-500/30"
+                    loading="lazy"
+                >
+            `
+            : `
+                <div class="w-12 h-12 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center">
+                    <i data-lucide="shirt" class="w-5 h-5 text-pink-400"></i>
+                </div>
+            `;
 
         let celdaAcciones = "";
+
         if (esSoloLectura) {
             celdaAcciones = `
-                <span class="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 bg-slate-800/60 border border-slate-700/50 px-2.5 py-1 rounded-lg">
-                    <i data-lucide="eye" class="w-3.5 h-3.5 text-slate-400"></i>
-                    <span>Solo Lectura</span>
+                <span class="inline-flex items-center gap-1 text-xs text-slate-400">
+                    <i data-lucide="eye" class="w-4 h-4"></i>
+                    Solo Lectura
                 </span>
             `;
         } else {
             celdaAcciones = `
                 <div class="inline-flex items-center justify-center gap-2">
-                    <button type="button"
-                            data-id="${producto.id}"
-                            data-nombre="${escaparAtributo(producto.nombre)}"
-                            data-cantidad="${producto.cantidad}"
-                            data-precio="${producto.precio}"
-                            onclick="prepararEdicion(Number(this.dataset.id), this.dataset.nombre, Number(this.dataset.cantidad), Number(this.dataset.precio))" 
-                            class="inline-flex items-center gap-1.5 text-xs font-medium bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/35 px-2.5 py-1.5 rounded-lg hover:bg-fuchsia-500/25 hover:border-fuchsia-400/60 transition">
+
+                    <button
+                        type="button"
+                        data-id="${escaparAtributo(producto.id)}"
+                        class="btnEditarProducto inline-flex items-center gap-1.5 text-xs font-medium bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/35 px-2.5 py-1.5 rounded-lg">
+
                         <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
-                        <span>Editar</span>
+                        Editar
                     </button>
-                    <button type="button"
-                            onclick="eliminarProducto(${producto.id})" 
-                            class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 hover:border-rose-400/50 transition">
+
+                    <button
+                        type="button"
+                        data-id="${escaparAtributo(producto.id)}"
+                        class="btnEliminarProducto inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg">
+
                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                        <span>Eliminar</span>
+                        Eliminar
                     </button>
+
                 </div>
             `;
         }
-        
+
         fila.innerHTML = `
             <td class="py-3.5 px-4 font-medium text-slate-100">
-                <div class="flex items-center gap-2.5">
-                    <i data-lucide="shirt" class="w-4 h-4 text-pink-400 shrink-0"></i>
+                <div class="flex items-center gap-3">
+                    ${imagenHtml}
                     <span>${escaparAtributo(producto.nombre)}</span>
                 </div>
             </td>
+
             <td class="py-3.5 px-4 font-medium text-slate-300">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/30">
-                    ${producto.cantidad} en stock
+                    ${Number(producto.cantidad) || 0} en stock
                 </span>
             </td>
-            <td class="py-3.5 px-4 font-semibold text-pink-400 whitespace-nowrap">${formatearLempiras(producto.precio)}</td>
+
+            <td class="py-3.5 px-4 font-semibold text-pink-400 whitespace-nowrap">
+                ${formatearLempiras(producto.precio)}
+            </td>
+
             <td class="py-3.5 px-4 text-center">
                 ${celdaAcciones}
             </td>
         `;
+
+        const btnEditar = fila.querySelector(".btnEditarProducto");
+
+        if (btnEditar) {
+            btnEditar.addEventListener("click", () => {
+                prepararEdicion(producto.id);
+            });
+        }
+
+        const btnEliminar = fila.querySelector(".btnEliminarProducto");
+
+        if (btnEliminar) {
+            btnEliminar.addEventListener("click", () => {
+                eliminarProducto(producto.id);
+            });
+        }
+
         tableBody.appendChild(fila);
     });
 
     refrescarIconos();
 }
 
-function cancelarEdicionProducto() {
-    const formulario = document.getElementById("productForm");
-    if (formulario) formulario.reset();
-    idProductoEditando = null;
-
-    const botonSubmit = document.querySelector("#productForm button[type='submit']");
-    if (botonSubmit) {
-        botonSubmit.innerHTML = `
-            <i data-lucide="check" class="w-4 h-4"></i>
-            <span>Guardar Prenda</span>
-        `;
-        refrescarIconos();
-    }
-
-    const tituloForm = document.getElementById("formProductoTitulo");
-    if (tituloForm) tituloForm.textContent = "Nueva Prenda";
-
-    const btnCancelar = document.getElementById("btnCancelarEdicion");
-    if (btnCancelar) btnCancelar.classList.add("hidden");
-}
-
-async function eliminarProducto(id) {
+function prepararEdicion(id) {
     const rolActual = sessionStorage.getItem("rol");
-    if (rolActual !== "admin" && rolActual !== "encargado_inventario") {
-        mostrarNotificacion("Permiso denegado: Tu rol no permite eliminar prendas del catálogo.", "error");
+
+    if (
+        rolActual !== "admin" &&
+        rolActual !== "encargado_inventario"
+    ) {
+        mostrarNotificacion(
+            "No tienes permisos para editar prendas.",
+            "error"
+        );
         return;
     }
 
-    const confirmado = await mostrarConfirmacion("¿Estás seguro de que deseas retirar esta prenda del catálogo?");
-    if (confirmado) {
-        console.log("Eliminando producto id:", id);
-        const { error } = await supabaseClient
-            .from('productos')
-            .delete()
-            .eq('id', id);
+    const producto = productosInventarioActuales.find(
+        item => Number(item.id) === Number(id)
+    );
 
-        console.log("Resultado eliminar producto:", error);
+    if (!producto) {
+        mostrarNotificacion("No se encontró el producto.", "error");
+        return;
+    }
 
-        if (error) {
-            mostrarNotificacion("Error al eliminar prenda: " + error.message, "error");
-        } else {
-            if (idProductoEditando === id) {
-                cancelarEdicionProducto();
-            }
-            mostrarNotificacion("¡Prenda eliminada del catálogo!", "success");
-            cargarInventario();
+    idProductoEditando = producto.id;
+
+    document.getElementById("nombre").value =
+        producto.nombre || "";
+
+    document.getElementById("cantidad").value =
+        producto.cantidad ?? 0;
+
+    document.getElementById("precio").value =
+        producto.precio ?? 0;
+
+    limpiarImagenProducto();
+
+    const imagenExistente = obtenerUrlImagen(producto.imagenes);
+
+    if (imagenExistente) {
+        const contenedor =
+            document.getElementById("contenedorVistaPrevia");
+
+        const vistaPrevia =
+            document.getElementById("vistaPreviaProducto");
+
+        if (contenedor && vistaPrevia) {
+            vistaPrevia.src = imagenExistente;
+            contenedor.classList.remove("hidden");
         }
     }
-}
 
-function prepararEdicion(id, nombre, cantidad, precio) {
-    const rolActual = sessionStorage.getItem("rol");
-    if (rolActual !== "admin" && rolActual !== "encargado_inventario") {
-        mostrarNotificacion("Permiso denegado: No tienes permisos para editar prendas.", "error");
-        return;
-    }
+    const botonSubmit =
+        document.querySelector("#productForm button[type='submit']");
 
-    idProductoEditando = id;
-    document.getElementById("nombre").value = nombre;
-    document.getElementById("cantidad").value = cantidad;
-    document.getElementById("precio").value = precio;
-
-    const botonSubmit = document.querySelector("#productForm button[type='submit']");
     if (botonSubmit) {
         botonSubmit.innerHTML = `
             <i data-lucide="save" class="w-4 h-4"></i>
             <span>Actualizar Prenda</span>
         `;
-        refrescarIconos();
     }
 
-    const tituloForm = document.getElementById("formProductoTitulo");
-    if (tituloForm) tituloForm.textContent = "Editar Prenda";
+    const tituloForm =
+        document.getElementById("formProductoTitulo");
 
-    const btnCancelar = document.getElementById("btnCancelarEdicion");
-    if (btnCancelar) btnCancelar.classList.remove("hidden");
+    if (tituloForm) {
+        tituloForm.textContent = "Editar Prenda";
+    }
 
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.getElementById("btnCancelarEdicion")
+        ?.classList.remove("hidden");
+
+    refrescarIconos();
+
+    window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+    });
+}
+
+function cancelarEdicionProducto() {
+    const formulario = document.getElementById("productForm");
+
+    if (formulario) formulario.reset();
+
+    idProductoEditando = null;
+    limpiarImagenProducto();
+
+    const botonSubmit =
+        document.querySelector("#productForm button[type='submit']");
+
+    if (botonSubmit) {
+        botonSubmit.innerHTML = `
+            <i data-lucide="check" class="w-4 h-4"></i>
+            <span>Guardar Prenda</span>
+        `;
+    }
+
+    const tituloForm =
+        document.getElementById("formProductoTitulo");
+
+    if (tituloForm) {
+        tituloForm.textContent = "Nueva Prenda";
+    }
+
+    document.getElementById("btnCancelarEdicion")
+        ?.classList.add("hidden");
+
+    refrescarIconos();
+}
+
+async function eliminarProducto(id) {
+    const rolActual = sessionStorage.getItem("rol");
+
+    if (
+        rolActual !== "admin" &&
+        rolActual !== "encargado_inventario"
+    ) {
+        mostrarNotificacion(
+            "No tienes permiso para eliminar prendas.",
+            "error"
+        );
+        return;
+    }
+
+    const confirmado = await mostrarConfirmacion(
+        "¿Estás seguro de que deseas retirar esta prenda del catálogo?"
+    );
+
+    if (!confirmado) return;
+
+    const { error } = await supabaseClient
+        .from("productos")
+        .delete()
+        .eq("id", id);
+
+    if (error) {
+        mostrarNotificacion(
+            "Error al eliminar prenda: " + error.message,
+            "error"
+        );
+        return;
+    }
+
+    if (Number(idProductoEditando) === Number(id)) {
+        cancelarEdicionProducto();
+    }
+
+    mostrarNotificacion(
+        "¡Prenda eliminada del catálogo!",
+        "success"
+    );
+
+    await cargarInventario();
 }
 
 async function cargarProductosEjemplo() {
     const rolActual = sessionStorage.getItem("rol");
-    if (rolActual !== "admin" && rolActual !== "encargado_inventario") {
-        mostrarNotificacion("Permiso denegado: Solo el Administrador o Encargado de Inventario pueden cargar ejemplos.", "error");
+
+    if (
+        rolActual !== "admin" &&
+        rolActual !== "encargado_inventario"
+    ) {
+        mostrarNotificacion(
+            "Solo el Administrador o Encargado de Inventario pueden cargar ejemplos.",
+            "error"
+        );
         return;
     }
 
-    const confirmado = await mostrarConfirmacion("¿Cargar 15 productos de ejemplo de la boutique?");
+    const confirmado = await mostrarConfirmacion(
+        "¿Cargar 15 productos de ejemplo de la boutique?"
+    );
+
     if (!confirmado) return;
 
     const productosEjemplo = [
@@ -510,32 +918,50 @@ async function cargarProductosEjemplo() {
         { nombre: "Bufanda de cachemira estampada - Única", cantidad: 16, precio: 320.00 }
     ];
 
-    console.log("Insertando productos de ejemplo en Supabase...");
-    const { error } = await supabaseClient
-        .from('productos')
-        .insert(productosEjemplo);
+    // imagenes es JSONB, por eso cada producto inicia con un arreglo vacío.
+    const productosConImagenes = productosEjemplo.map(producto => ({
+        ...producto,
+        imagenes: []
+    }));
 
-    console.log("Resultado insertar ejemplos:", error);
+    const { error } = await supabaseClient
+        .from("productos")
+        .insert(productosConImagenes);
 
     if (error) {
-        mostrarNotificacion("Error al cargar productos de ejemplo: " + error.message, "error");
+        mostrarNotificacion(
+            "Error al cargar productos de ejemplo: " + error.message,
+            "error"
+        );
     } else {
-        mostrarNotificacion("¡15 prendas de ejemplo cargadas con éxito!", "success");
-        cargarInventario();
+        mostrarNotificacion(
+            "¡15 prendas de ejemplo cargadas con éxito!",
+            "success"
+        );
+
+        await cargarInventario();
     }
 }
 
 /* ==========================================================================
-   PASO 5: MÓDULO DE PERSONAL (TABLA: personal) - SOLO ADMIN
+   PASO 6: MÓDULO DE PERSONAL
+   Tabla: personal
    ========================================================================== */
+
 function actualizarResumenPersonal(listaPersonal = []) {
     const elTotal = document.getElementById("statTotalPersonal");
     const elMasc = document.getElementById("statPersonalMasculino");
     const elFem = document.getElementById("statPersonalFemenino");
 
     const total = listaPersonal.length;
-    const masculino = listaPersonal.filter(p => String(p.genero).toLowerCase() === "masculino").length;
-    const femenino = listaPersonal.filter(p => String(p.genero).toLowerCase() === "femenino").length;
+
+    const masculino = listaPersonal.filter(
+        p => String(p.genero).toLowerCase() === "masculino"
+    ).length;
+
+    const femenino = listaPersonal.filter(
+        p => String(p.genero).toLowerCase() === "femenino"
+    ).length;
 
     if (elTotal) elTotal.textContent = total;
     if (elMasc) elMasc.textContent = masculino;
@@ -543,42 +969,23 @@ function actualizarResumenPersonal(listaPersonal = []) {
 }
 
 async function cargarPersonal() {
-    const tableBody = document.getElementById("personalTableBody");
+    const tableBody =
+        document.getElementById("personalTableBody");
+
     if (!tableBody) return;
 
-    tableBody.innerHTML = `
-        <tr>
-            <td colspan="6" class="py-10 text-center text-slate-400">
-                <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-800/60 border border-pink-500/25 text-pink-300 text-xs font-medium">
-                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-pink-400"></i>
-                    <span>Cargando equipo de la boutique desde Supabase...</span>
-                </div>
-            </td>
-        </tr>
-    `;
-    refrescarIconos();
-
-    console.log("Cargando personal desde Supabase...");
     const { data: listaPersonal, error } = await supabaseClient
-        .from('personal')
-        .select('*');
-
-    console.log("Resultado carga personal:", listaPersonal, "Error:", error);
+        .from("personal")
+        .select("*");
 
     if (error) {
         console.error("Error al cargar personal:", error);
-        mostrarNotificacion("Error al cargar el equipo: " + error.message, "error");
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="6" class="py-8 text-center text-rose-400">
-                    <div class="inline-flex items-center gap-2">
-                        <i data-lucide="alert-triangle" class="w-4 h-4"></i>
-                        <span>Error al cargar los datos del Equipo de la Boutique.</span>
-                    </div>
-                </td>
-            </tr>
-        `;
-        refrescarIconos();
+
+        mostrarNotificacion(
+            "Error al cargar el equipo: " + error.message,
+            "error"
+        );
+
         actualizarResumenPersonal([]);
         return;
     }
@@ -589,44 +996,56 @@ async function cargarPersonal() {
         tableBody.innerHTML = `
             <tr>
                 <td colspan="6" class="py-10 text-center text-slate-400">
-                    <div class="space-y-2">
-                        <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
-                            <i data-lucide="user-x" class="w-6 h-6"></i>
-                        </div>
-                        <p class="font-medium text-slate-300">No hay integrantes en el equipo aún</p>
-                        <p class="text-xs text-slate-500">Completa el formulario para registrar al primer colaborador de la boutique.</p>
-                    </div>
+                    No hay integrantes registrados aún.
                 </td>
             </tr>
         `;
-        refrescarIconos();
+
         return;
     }
 
     tableBody.innerHTML = "";
+
     listaPersonal.forEach(persona => {
         const fila = document.createElement("tr");
-        fila.className = "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors duration-150";
+
+        fila.className =
+            "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors";
+
         fila.innerHTML = `
-            <td class="py-3.5 px-4 text-pink-300 font-semibold whitespace-nowrap">${escaparAtributo(persona.identidad)}</td>
-            <td class="py-3.5 px-4 text-slate-100 font-medium">${escaparAtributo(persona.nombres_apellidos)}</td>
-            <td class="py-3.5 px-4 text-slate-300">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-500/15 text-violet-200 border border-violet-500/30">
-                    ${escaparAtributo(persona.genero)}
-                </span>
+            <td class="py-3.5 px-4 text-pink-300 font-semibold">
+                ${escaparAtributo(persona.identidad)}
             </td>
-            <td class="py-3.5 px-4 text-slate-300 whitespace-nowrap">${escaparAtributo(persona.telefono)}</td>
-            <td class="py-3.5 px-4 text-slate-400">${escaparAtributo(persona.direccion)}</td>
+
+            <td class="py-3.5 px-4 text-slate-100 font-medium">
+                ${escaparAtributo(persona.nombres_apellidos)}
+            </td>
+
+            <td class="py-3.5 px-4 text-slate-300">
+                ${escaparAtributo(persona.genero)}
+            </td>
+
+            <td class="py-3.5 px-4 text-slate-300">
+                ${escaparAtributo(persona.telefono)}
+            </td>
+
+            <td class="py-3.5 px-4 text-slate-400">
+                ${escaparAtributo(persona.direccion)}
+            </td>
+
             <td class="py-3.5 px-4 text-center">
-                <button type="button"
-                        data-identidad="${escaparAtributo(persona.identidad)}"
-                        onclick="eliminarPersonal(this.dataset.identidad)"
-                        class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 hover:border-rose-400/50 transition">
+                <button
+                    type="button"
+                    data-identidad="${escaparAtributo(persona.identidad)}"
+                    onclick="eliminarPersonal(this.dataset.identidad)"
+                    class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg">
+
                     <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                    <span>Eliminar</span>
+                    Eliminar
                 </button>
             </td>
         `;
+
         tableBody.appendChild(fila);
     });
 
@@ -634,210 +1053,208 @@ async function cargarPersonal() {
 }
 
 async function eliminarPersonal(identidad) {
-    const rolActual = sessionStorage.getItem("rol");
-    if (rolActual !== "admin") {
-        mostrarNotificacion("Permiso denegado: Solo el Administrador puede retirar colaboradores.", "error");
+    if (sessionStorage.getItem("rol") !== "admin") {
+        mostrarNotificacion(
+            "Solo el Administrador puede retirar colaboradores.",
+            "error"
+        );
         return;
     }
 
-    const confirmado = await mostrarConfirmacion("¿Estás seguro de que deseas retirar a este integrante del Equipo de la Boutique?");
-    if (confirmado) {
-        console.log("Eliminando personal con identidad:", identidad);
-        const { error } = await supabaseClient
-            .from('personal')
-            .delete()
-            .eq('identidad', identidad);
+    const confirmado = await mostrarConfirmacion(
+        "¿Estás seguro de que deseas retirar a este integrante del equipo?"
+    );
 
-        console.log("Resultado eliminar personal:", error);
+    if (!confirmado) return;
 
-        if (error) {
-            mostrarNotificacion("Error al eliminar integrante: " + error.message, "error");
-        } else {
-            mostrarNotificacion("¡Integrante retirado del equipo correctamente!", "success");
-            cargarPersonal();
-            cargarSelectEmpleados();
-            cargarUsuarios();
-        }
+    const { error } = await supabaseClient
+        .from("personal")
+        .delete()
+        .eq("identidad", identidad);
+
+    if (error) {
+        mostrarNotificacion(
+            "Error al eliminar integrante: " + error.message,
+            "error"
+        );
+        return;
     }
+
+    mostrarNotificacion(
+        "¡Integrante retirado del equipo correctamente!",
+        "success"
+    );
+
+    await cargarPersonal();
+    await cargarSelectEmpleados();
+    await cargarUsuarios();
 }
 
 /* ==========================================================================
-   PASO 6: GESTIÓN DE CUENTAS DE USUARIOS (TABLA: usuarios) - SOLO ADMIN
-   Columnas: usuario (PK), password, rol, identidad (FK)
-   Roles: admin, encargado_inventario, encargado_proveedores, asesor
+   PASO 7: GESTIÓN DE USUARIOS
+   Tabla: usuarios
    ========================================================================== */
+
 async function cargarSelectEmpleados() {
-    const select = document.getElementById("nuevoEmpleadoIdentidad");
+    const select =
+        document.getElementById("nuevoEmpleadoIdentidad");
+
     if (!select) return;
 
-    console.log("Consultando personal para cargarSelectEmpleados()...");
     const { data: empleados, error } = await supabaseClient
-        .from('personal')
-        .select('identidad, nombres_apellidos')
-        .order('nombres_apellidos', { ascending: true });
-
-    console.log("Resultado select empleados:", empleados, "Error:", error);
+        .from("personal")
+        .select("identidad, nombres_apellidos")
+        .order("nombres_apellidos", { ascending: true });
 
     if (error) {
-        console.error("Error al cargar selector de empleados:", error);
+        console.error("Error al cargar empleados:", error);
         return;
     }
 
-    select.innerHTML = `<option value="">-- Sin vincular a colaborador --</option>`;
+    select.innerHTML =
+        `<option value="">-- Sin vincular a colaborador --</option>`;
 
-    if (empleados && empleados.length > 0) {
-        empleados.forEach(emp => {
-            const opt = document.createElement("option");
-            opt.value = emp.identidad;
-            opt.textContent = `${emp.nombres_apellidos} (${emp.identidad})`;
-            select.appendChild(opt);
-        });
-    }
+    (empleados || []).forEach(emp => {
+        const opt = document.createElement("option");
+
+        opt.value = emp.identidad;
+
+        opt.textContent =
+            `${emp.nombres_apellidos} (${emp.identidad})`;
+
+        select.appendChild(opt);
+    });
 }
 
 async function cargarUsuarios() {
-    const tableBody = document.getElementById("usuariosTableBody");
+    const tableBody =
+        document.getElementById("usuariosTableBody");
+
     if (!tableBody) return;
 
     tableBody.innerHTML = `
         <tr>
             <td colspan="4" class="py-8 text-center text-slate-400">
-                <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-800/60 border border-pink-500/25 text-pink-300 text-xs font-medium">
-                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-pink-400"></i>
-                    <span>Cargando cuentas de usuario desde Supabase...</span>
-                </div>
+                Cargando cuentas de usuario...
             </td>
         </tr>
     `;
-    refrescarIconos();
-
-    console.log("Ejecutando cargarUsuarios(). Consultando tabla 'usuarios'...");
 
     try {
         const { data: usuarios, error } = await supabaseClient
-            .from('usuarios')
-            .select('*')
-            .order('usuario', { ascending: true });
-
-        console.log("Resultado consulta usuarios (cargarUsuarios):", usuarios);
-        console.log("Error consulta usuarios (cargarUsuarios):", error);
+            .from("usuarios")
+            .select("*")
+            .order("usuario", { ascending: true });
 
         if (error) {
-            console.error("Error devuelto por Supabase al cargar usuarios:", error);
-            mostrarNotificacion("Error al cargar usuarios: " + (error.message || JSON.stringify(error)), "error");
+            console.error("Error al cargar usuarios:", error);
+
+            mostrarNotificacion(
+                "Error al cargar usuarios: " + error.message,
+                "error"
+            );
+
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="4" class="py-8 text-center">
-                        <div class="inline-flex flex-col items-center gap-2 max-w-md mx-auto p-4 rounded-xl bg-rose-500/10 border border-rose-500/40 text-rose-300 shadow-xl">
-                            <div class="flex items-center gap-2 text-rose-400 font-semibold text-sm">
-                                <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0"></i>
-                                <span>Error al consultar la tabla usuarios en Supabase</span>
-                            </div>
-                            <p class="text-xs text-rose-200 font-mono break-all">${escaparAtributo(error.message || JSON.stringify(error))}</p>
-                            ${error.hint ? `<p class="text-[11px] text-slate-400">Pista: ${escaparAtributo(error.hint)}</p>` : ''}
-                            ${error.details ? `<p class="text-[11px] text-slate-400">Detalles: ${escaparAtributo(error.details)}</p>` : ''}
-                        </div>
+                    <td colspan="4" class="py-8 text-center text-rose-400">
+                        Error al consultar la tabla usuarios.
                     </td>
                 </tr>
             `;
-            refrescarIconos();
+
             return;
         }
 
-        // Consultar nombres de personal para asociar nombres reales
-        console.log("Consultando tabla personal para cruzar colaboradores...");
-        const { data: listaPersonal, error: errorPersonal } = await supabaseClient
-            .from('personal')
-            .select('identidad, nombres_apellidos');
-
-        console.log("Resultado consulta personal (cargarUsuarios):", listaPersonal);
-        console.log("Error consulta personal (cargarUsuarios):", errorPersonal);
+        const { data: listaPersonal } = await supabaseClient
+            .from("personal")
+            .select("identidad, nombres_apellidos");
 
         const mapaPersonal = {};
-        if (listaPersonal) {
-            listaPersonal.forEach(p => {
-                mapaPersonal[p.identidad] = p.nombres_apellidos;
-            });
-        }
+
+        (listaPersonal || []).forEach(p => {
+            mapaPersonal[p.identidad] = p.nombres_apellidos;
+        });
 
         if (!usuarios || usuarios.length === 0) {
-            console.log("No hay usuarios registrados en la tabla 'usuarios'.");
             tableBody.innerHTML = `
                 <tr>
                     <td colspan="4" class="py-10 text-center text-slate-400">
-                        <div class="space-y-2">
-                            <div class="w-10 h-10 mx-auto rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
-                                <i data-lucide="user-x" class="w-5 h-5"></i>
-                            </div>
-                            <p class="font-medium text-slate-300 text-sm">No hay cuentas de usuario registradas aún</p>
-                            <p class="text-xs text-slate-500">Usa el formulario de la izquierda para crear la primera cuenta de acceso.</p>
-                        </div>
+                        No hay cuentas de usuario registradas.
                     </td>
                 </tr>
             `;
-            refrescarIconos();
+
             return;
         }
 
-        const usuarioLogueado = sessionStorage.getItem("usuario");
+        const usuarioLogueado =
+            sessionStorage.getItem("usuario");
+
         tableBody.innerHTML = "";
 
         usuarios.forEach(u => {
             const fila = document.createElement("tr");
-            fila.className = "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors duration-150";
 
-            let rolBadge = "";
-            if (u.rol === "admin") {
-                rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-pink-500/15 text-pink-300 border border-pink-500/35"><i data-lucide="shield" class="w-3 h-3"></i>Administrador</span>`;
-            } else if (u.rol === "encargado_inventario") {
-                rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/35"><i data-lucide="shirt" class="w-3 h-3"></i>Encargado Inventario</span>`;
-            } else if (u.rol === "encargado_proveedores") {
-                rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/35"><i data-lucide="truck" class="w-3 h-3"></i>Encargado Proveedores</span>`;
-            } else {
-                rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/35"><i data-lucide="tag" class="w-3 h-3"></i>Asesor de Moda</span>`;
-            }
+            fila.className =
+                "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors";
 
-            let colaboradorTexto = `<span class="text-xs text-slate-500 italic">Sin vincular</span>`;
-            if (u.identidad) {
-                const nombreReal = mapaPersonal[u.identidad] || "Colaborador";
-                colaboradorTexto = `
+            const roles = {
+                admin: "Administrador",
+                encargado_inventario: "Encargado Inventario",
+                encargado_proveedores: "Encargado Proveedores",
+                asesor: "Asesor de Moda"
+            };
+
+            const rolTexto = roles[u.rol] || u.rol;
+
+            const colaborador = u.identidad
+                ? `
                     <div>
-                        <span class="text-sm font-medium text-slate-200 block">${escaparAtributo(nombreReal)}</span>
-                        <span class="text-[11px] text-pink-300/80 font-mono">${escaparAtributo(u.identidad)}</span>
-                    </div>
-                `;
-            }
+                        <span class="text-sm font-medium text-slate-200 block">
+                            ${escaparAtributo(mapaPersonal[u.identidad] || "Colaborador")}
+                        </span>
 
-            let celdaAccion = "";
-            if (u.usuario === usuarioLogueado) {
-                celdaAccion = `
-                    <span class="inline-flex items-center gap-1 text-[11px] text-pink-400 bg-pink-500/10 border border-pink-500/30 px-2 py-1 rounded-lg font-medium">
-                        <i data-lucide="user-check" class="w-3 h-3"></i>
-                        <span>Sesión actual</span>
+                        <span class="text-xs text-pink-300 font-mono">
+                            ${escaparAtributo(u.identidad)}
+                        </span>
+                    </div>
+                `
+                : `<span class="text-xs text-slate-500 italic">Sin vincular</span>`;
+
+            const accion = u.usuario === usuarioLogueado
+                ? `
+                    <span class="text-xs text-pink-400">
+                        Sesión actual
                     </span>
-                `;
-            } else {
-                celdaAccion = `
-                    <button type="button"
-                            data-usuario="${escaparAtributo(u.usuario)}"
-                            onclick="eliminarUsuario(this.dataset.usuario)"
-                            class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 hover:border-rose-400/50 transition">
+                `
+                : `
+                    <button
+                        type="button"
+                        data-usuario="${escaparAtributo(u.usuario)}"
+                        onclick="eliminarUsuario(this.dataset.usuario)"
+                        class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg">
+
                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                        <span>Eliminar</span>
+                        Eliminar
                     </button>
                 `;
-            }
 
             fila.innerHTML = `
-                <td class="py-3.5 px-4 font-semibold text-slate-100 whitespace-nowrap">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="user" class="w-4 h-4 text-pink-400"></i>
-                        <span>${escaparAtributo(u.usuario)}</span>
-                    </div>
+                <td class="py-3.5 px-4 font-semibold text-slate-100">
+                    ${escaparAtributo(u.usuario)}
                 </td>
-                <td class="py-3.5 px-4">${rolBadge}</td>
-                <td class="py-3.5 px-4">${colaboradorTexto}</td>
-                <td class="py-3.5 px-4 text-center">${celdaAccion}</td>
+
+                <td class="py-3.5 px-4 text-slate-300">
+                    ${escaparAtributo(rolTexto)}
+                </td>
+
+                <td class="py-3.5 px-4">
+                    ${colaborador}
+                </td>
+
+                <td class="py-3.5 px-4 text-center">
+                    ${accion}
+                </td>
             `;
 
             tableBody.appendChild(fila);
@@ -845,76 +1262,84 @@ async function cargarUsuarios() {
 
         refrescarIconos();
 
-    } catch (errEx) {
-        console.error("Excepción inesperada en cargarUsuarios:", errEx);
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="4" class="py-8 text-center">
-                    <div class="inline-flex flex-col items-center gap-2 max-w-md mx-auto p-4 rounded-xl bg-rose-500/10 border border-rose-500/40 text-rose-300 shadow-xl">
-                        <div class="flex items-center gap-2 text-rose-400 font-semibold text-sm">
-                            <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0"></i>
-                            <span>Error inesperado al cargar usuarios</span>
-                        </div>
-                        <p class="text-xs text-rose-200 font-mono break-all">${escaparAtributo(errEx.message || errEx)}</p>
-                    </div>
-                </td>
-            </tr>
-        `;
-        refrescarIconos();
-        mostrarNotificacion("Error al cargar usuarios: " + (errEx.message || errEx), "error");
+    } catch (error) {
+        console.error("Error inesperado al cargar usuarios:", error);
+
+        mostrarNotificacion(
+            "Error al cargar usuarios: " + error.message,
+            "error"
+        );
     }
 }
 
 async function eliminarUsuario(nombreUsuario) {
-    const rolActual = sessionStorage.getItem("rol");
-    if (rolActual !== "admin") {
-        mostrarNotificacion("Permiso denegado: Solo el Administrador puede eliminar usuarios.", "error");
+    if (sessionStorage.getItem("rol") !== "admin") {
+        mostrarNotificacion(
+            "Solo el Administrador puede eliminar usuarios.",
+            "error"
+        );
         return;
     }
 
     if (nombreUsuario === sessionStorage.getItem("usuario")) {
-        mostrarNotificacion("No puedes eliminar la cuenta con la que has iniciado sesión.", "error");
+        mostrarNotificacion(
+            "No puedes eliminar tu propia cuenta.",
+            "error"
+        );
         return;
     }
 
-    const confirmado = await mostrarConfirmacion(`¿Estás seguro de que deseas eliminar la cuenta de usuario "${nombreUsuario}"?`);
-    if (confirmado) {
-        console.log("Eliminando usuario de Supabase:", nombreUsuario);
-        const { error } = await supabaseClient
-            .from('usuarios')
-            .delete()
-            .eq('usuario', nombreUsuario);
+    const confirmado = await mostrarConfirmacion(
+        `¿Estás seguro de eliminar la cuenta "${nombreUsuario}"?`
+    );
 
-        console.log("Resultado eliminar usuario:", error);
+    if (!confirmado) return;
 
-        if (error) {
-            mostrarNotificacion("Error al eliminar usuario: " + error.message, "error");
-        } else {
-            mostrarNotificacion(`Usuario "${nombreUsuario}" eliminado correctamente.`, "success");
-            cargarUsuarios();
-        }
+    const { error } = await supabaseClient
+        .from("usuarios")
+        .delete()
+        .eq("usuario", nombreUsuario);
+
+    if (error) {
+        mostrarNotificacion(
+            "Error al eliminar usuario: " + error.message,
+            "error"
+        );
+        return;
     }
+
+    mostrarNotificacion(
+        `Usuario "${nombreUsuario}" eliminado correctamente.`,
+        "success"
+    );
+
+    await cargarUsuarios();
 }
 
 /* ==========================================================================
-   PASO 7: MÓDULO DE PROVEEDORES (TABLA: proveedores)
-   Roles con permiso: admin, encargado_proveedores
+   PASO 8: MÓDULO DE PROVEEDORES
+   Tabla: proveedores
    ========================================================================== */
+
 async function cargarProveedores() {
-    const tableBody = document.getElementById("proveedoresTableBody");
+    const tableBody =
+        document.getElementById("proveedoresTableBody");
+
     if (!tableBody) return;
 
-    console.log("Cargando proveedores desde Supabase...");
     const { data: listaProveedores, error } = await supabaseClient
         .from("proveedores")
         .select("*")
         .order("codigo", { ascending: false });
 
-    console.log("Resultado carga proveedores:", listaProveedores, "Error:", error);
-
     if (error) {
         console.error("Error al cargar proveedores:", error);
-        mostrarNotificacion("Error al cargar proveedores: " + error.message, "error");
+
+        mostrarNotificacion(
+            "Error al cargar proveedores: " + error.message,
+            "error"
+        );
+
         return;
     }
 
@@ -922,15 +1347,11 @@ async function cargarProveedores() {
         tableBody.innerHTML = `
             <tr>
                 <td colspan="7" class="py-8 text-center text-slate-400">
-                    <div class="space-y-2">
-                        <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
-                            <i data-lucide="truck" class="w-6 h-6"></i>
-                        </div>
-                        <p class="font-medium text-slate-300">No hay proveedores registrados aún.</p>
-                    </div>
+                    No hay proveedores registrados aún.
                 </td>
             </tr>
         `;
+
         refrescarIconos();
         return;
     }
@@ -939,43 +1360,61 @@ async function cargarProveedores() {
 
     listaProveedores.forEach(prov => {
         const fila = document.createElement("tr");
-        fila.className = "border-b border-slate-800/60 hover:bg-slate-800/30 transition";
+
+        fila.className =
+            "border-b border-slate-800/60 hover:bg-slate-800/30 transition";
 
         fila.innerHTML = `
-            <td class="py-3 px-3 text-sky-400 font-bold">#${prov.codigo}</td>
-            <td class="py-3 px-3 text-slate-200"></td>
-            <td class="py-3 px-3 text-slate-300"></td>
-            <td class="py-3 px-3 text-slate-300"></td>
-            <td class="py-3 px-3 text-slate-400"></td>
-            <td class="py-3 px-3 text-slate-400"></td>
+            <td class="py-3 px-3 text-sky-400 font-bold">
+                #${escaparAtributo(prov.codigo)}
+            </td>
+
+            <td class="py-3 px-3 text-slate-200">
+                ${escaparAtributo(prov.empresa)}
+            </td>
+
+            <td class="py-3 px-3 text-slate-300">
+                ${escaparAtributo(prov.encargado)}
+            </td>
+
+            <td class="py-3 px-3 text-slate-300">
+                ${escaparAtributo(prov.telefono)}
+            </td>
+
+            <td class="py-3 px-3 text-slate-400">
+                ${escaparAtributo(prov.direccion)}
+            </td>
+
+            <td class="py-3 px-3 text-slate-400">
+                ${escaparAtributo(prov.correo)}
+            </td>
+
             <td class="py-3 px-3 text-center">
                 <div class="inline-flex items-center justify-center gap-2">
+
                     <button
                         type="button"
                         data-accion="editar"
-                        data-id="${prov.codigo}"
-                        class="inline-flex items-center gap-1.5 text-xs font-medium bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/35 px-2.5 py-1.5 rounded-lg hover:bg-fuchsia-500/25 transition">
+                        data-id="${escaparAtributo(prov.codigo)}"
+                        class="inline-flex items-center gap-1.5 text-xs font-medium bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/35 px-2.5 py-1.5 rounded-lg">
+
                         <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
-                        <span>Editar</span>
+                        Editar
                     </button>
+
                     <button
                         type="button"
                         data-accion="eliminar"
-                        data-id="${prov.codigo}"
-                        class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 transition">
+                        data-id="${escaparAtributo(prov.codigo)}"
+                        class="inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg">
+
                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                        <span>Eliminar</span>
+                        Eliminar
                     </button>
+
                 </div>
             </td>
         `;
-
-        const celdas = fila.querySelectorAll("td");
-        celdas[1].textContent = prov.empresa || "";
-        celdas[2].textContent = prov.encargado || "";
-        celdas[3].textContent = prov.telefono || "";
-        celdas[4].textContent = prov.direccion || "";
-        celdas[5].textContent = prov.correo || "";
 
         tableBody.appendChild(fila);
     });
@@ -986,91 +1425,82 @@ async function cargarProveedores() {
 function cancelarEdicionProveedor() {
     proveedorEnEdicionId = null;
 
-    const proveedoresForm = document.getElementById("proveedoresForm");
-    if (proveedoresForm) {
-        proveedoresForm.reset();
-    }
+    document.getElementById("proveedoresForm")?.reset();
 
-    const titulo = document.getElementById("tituloProveedor");
+    const titulo =
+        document.getElementById("tituloProveedor");
+
     if (titulo) {
         titulo.textContent = "Registrar proveedor";
     }
 
-    const botonGuardar = document.getElementById("btnGuardarProveedor");
+    const botonGuardar =
+        document.getElementById("btnGuardarProveedor");
+
     if (botonGuardar) {
         botonGuardar.innerHTML = `
             <i data-lucide="check" class="w-4 h-4"></i>
             <span>Registrar proveedor</span>
         `;
-        refrescarIconos();
     }
 
-    const botonCancelar = document.getElementById("btnCancelarProveedor");
-    if (botonCancelar) {
-        botonCancelar.classList.add("hidden");
-    }
+    document.getElementById("btnCancelarProveedor")
+        ?.classList.add("hidden");
+
+    refrescarIconos();
 }
 
 /* ==========================================================================
-   PASO 8: CATÁLOGO PÚBLICO PARA CLIENTES (index.html)
+   PASO 9: CATÁLOGO PÚBLICO
    ========================================================================== */
+
 async function cargarCatalogoPublico() {
-    const contenedor = document.getElementById("catalogoPublicoGrid");
+    const contenedor =
+        document.getElementById("catalogoPublicoGrid");
+
     if (!contenedor) return;
 
     contenedor.innerHTML = `
         <div class="col-span-full py-16 text-center text-slate-400">
-            <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-800/60 border border-pink-500/25 text-pink-300 text-xs font-medium">
-                <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-pink-400"></i>
-                <span>Cargando colección de prendas...</span>
-            </div>
+            Cargando colección de prendas...
         </div>
     `;
-    refrescarIconos();
 
-    console.log("Cargando catálogo público...");
     const { data: productos, error } = await supabaseClient
-        .from('productos')
-        .select('*')
-        .order('id', { ascending: false });
-
-    console.log("Resultado catálogo público:", productos, "Error:", error);
+        .from("productos")
+        .select("*")
+        .order("id", { ascending: false });
 
     if (error) {
-        console.error("Error al cargar catálogo público:", error);
+        console.error("Error al cargar catálogo:", error);
+
         contenedor.innerHTML = `
             <div class="col-span-full py-12 text-center text-rose-400">
-                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30">
-                    <i data-lucide="alert-triangle" class="w-4 h-4"></i>
-                    <span>No se pudo cargar la colección de prendas en este momento.</span>
-                </div>
+                No se pudo cargar la colección de prendas.
             </div>
         `;
-        refrescarIconos();
+
         return;
     }
 
     catalogoPrendasPublico = productos || [];
+
     renderizarCatalogoPublico(catalogoPrendasPublico);
 }
 
 function renderizarCatalogoPublico(prendas) {
-    const contenedor = document.getElementById("catalogoPublicoGrid");
+    const contenedor =
+        document.getElementById("catalogoPublicoGrid");
+
     if (!contenedor) return;
 
     if (!prendas || prendas.length === 0) {
         contenedor.innerHTML = `
             <div class="col-span-full py-16 text-center text-slate-400">
-                <div class="space-y-2 max-w-sm mx-auto">
-                    <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
-                        <i data-lucide="search-x" class="w-6 h-6"></i>
-                    </div>
-                    <p class="font-medium text-slate-300">No se encontraron prendas</p>
-                    <p class="text-xs text-slate-500">Intenta con otro término de búsqueda o revisa más tarde nuestras novedades.</p>
-                </div>
+                No se encontraron prendas.
             </div>
         `;
-        refrescarIconos();
+
         return;
     }
 
@@ -1078,58 +1508,80 @@ function renderizarCatalogoPublico(prendas) {
 
     prendas.forEach(prenda => {
         const cantidad = Number(prenda.cantidad) || 0;
+
         let badgeHtml = "";
 
         if (cantidad <= 0) {
             badgeHtml = `
-                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30">
-                    <i data-lucide="ban" class="w-3 h-3"></i>
-                    <span>Agotado</span>
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30">
+                    Agotado
                 </span>
             `;
         } else if (cantidad <= 5) {
             badgeHtml = `
-                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                    <i data-lucide="clock" class="w-3 h-3"></i>
-                    <span>Pocas unidades (${cantidad})</span>
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    Pocas unidades (${cantidad})
                 </span>
             `;
         } else {
             badgeHtml = `
-                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                    <i data-lucide="check" class="w-3 h-3"></i>
-                    <span>Disponible</span>
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                    Disponible
                 </span>
             `;
         }
 
+        const urlImagen = obtenerUrlImagen(prenda.imagenes);
+
+        const imagenHtml = urlImagen
+            ? `
+                <img
+                    src="${escaparAtributo(urlImagen)}"
+                    alt="${escaparAtributo(prenda.nombre)}"
+                    class="w-full h-56 object-cover rounded-xl mb-4"
+                    loading="lazy"
+                >
+            `
+            : `
+                <div class="w-full h-56 rounded-xl mb-4 bg-gradient-to-br from-pink-500/10 to-violet-500/10 border border-pink-500/20 flex items-center justify-center">
+                    <i data-lucide="shirt" class="w-12 h-12 text-pink-400"></i>
+                </div>
+            `;
+
         const tarjeta = document.createElement("article");
-        tarjeta.className = "neon-card p-5 rounded-2xl flex flex-col justify-between group transition-all duration-300 hover:-translate-y-1";
+
+        tarjeta.className =
+            "neon-card p-5 rounded-2xl flex flex-col justify-between group transition-all duration-300 hover:-translate-y-1";
 
         tarjeta.innerHTML = `
             <div>
-                <div class="flex items-start justify-between gap-2 mb-4">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500/20 to-violet-500/20 border border-pink-400/30 flex items-center justify-center text-pink-400 group-hover:border-pink-400/60 transition shadow-lg shadow-pink-500/10">
-                        <i data-lucide="shirt" class="w-5 h-5"></i>
-                    </div>
+                ${imagenHtml}
+
+                <div class="flex items-center justify-between gap-2 mb-3">
                     ${badgeHtml}
                 </div>
 
-                <h3 class="text-base font-bold text-slate-100 group-hover:text-pink-300 transition leading-snug">
+                <h3 class="text-base font-bold text-slate-100 leading-snug">
                     ${escaparAtributo(prenda.nombre)}
                 </h3>
             </div>
 
             <div class="pt-4 mt-4 border-t border-slate-800/80 flex items-center justify-between">
+
                 <div>
-                    <p class="text-[10px] uppercase font-semibold tracking-wider text-slate-400">Precio</p>
-                    <p class="text-lg font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-300 to-fuchsia-400">
+                    <p class="text-xs uppercase font-semibold tracking-wider text-slate-400">
+                        Precio
+                    </p>
+
+                    <p class="text-lg font-extrabold text-pink-400">
                         ${formatearLempiras(prenda.precio)}
                     </p>
                 </div>
-                <div class="w-8 h-8 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400/70 group-hover:text-pink-300 group-hover:border-pink-400/40 transition">
+
+                <div class="w-8 h-8 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
                     <i data-lucide="sparkles" class="w-4 h-4"></i>
                 </div>
+
             </div>
         `;
 
@@ -1140,231 +1592,392 @@ function renderizarCatalogoPublico(prendas) {
 }
 
 function filtrarCatalogoPublico(termino) {
-    const query = String(termino || "").toLowerCase().trim();
+    const query = String(termino || "")
+        .toLowerCase()
+        .trim();
+
     if (!query) {
         renderizarCatalogoPublico(catalogoPrendasPublico);
         return;
     }
-    const filtrados = catalogoPrendasPublico.filter(item => 
-        String(item.nombre || "").toLowerCase().includes(query)
+
+    const filtrados = catalogoPrendasPublico.filter(item =>
+        String(item.nombre || "")
+            .toLowerCase()
+            .includes(query)
     );
+
     renderizarCatalogoPublico(filtrados);
 }
 
 /* ==========================================================================
-   PASO 9: INICIALIZACIÓN DE FORMULARIOS Y EVENT LISTENERS
-   Garantiza que todos los elementos existan en el DOM antes de bindear eventos
+   PASO 10: FORMULARIOS Y EVENTOS
    ========================================================================== */
+
 function inicializarFormulariosYEventos() {
-    // ----------------------------------------------------------------------
-    // 1. FORMULARIO DE LOGIN (login.html)
-    // ----------------------------------------------------------------------
+
+    /* ----------------------------------------------------------------------
+       1. LOGIN
+       ---------------------------------------------------------------------- */
+
     const loginForm = document.getElementById("loginForm");
+
     if (loginForm && !loginForm.dataset.listenerAdjunto) {
         loginForm.dataset.listenerAdjunto = "true";
-        loginForm.addEventListener("submit", async (evento) => {
+
+        loginForm.addEventListener("submit", async evento => {
             evento.preventDefault();
 
-            const usuarioInput = document.getElementById("usuario").value.trim();
-            const passwordInput = document.getElementById("password").value.trim();
-            const btnLogin = document.getElementById("btnLogin");
+            const usuarioInput =
+                document.getElementById("usuario").value.trim();
+
+            const passwordInput =
+                document.getElementById("password").value.trim();
+
+            const btnLogin =
+                document.getElementById("btnLogin");
 
             if (!usuarioInput || !passwordInput) {
-                mostrarNotificacion("Por favor ingresa usuario y contraseña.", "error");
+                mostrarNotificacion(
+                    "Por favor ingresa usuario y contraseña.",
+                    "error"
+                );
                 return;
             }
 
             if (btnLogin) {
                 btnLogin.disabled = true;
-                btnLogin.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span>Verificando...</span>`;
+
+                btnLogin.innerHTML = `
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                    <span>Verificando...</span>
+                `;
+
                 refrescarIconos();
             }
 
             try {
-                console.log("Intentando login para:", { usuario: usuarioInput });
-                console.log("Consultando tabla usuarios en Supabase...");
-
-                const { data: usuarioData, error: errorUsuario } = await supabaseClient
-                    .from('usuarios')
-                    .select('*')
-                    .eq('usuario', usuarioInput)
-                    .eq('password', passwordInput)
-                    .maybeSingle();
-
-                console.log("Resultado consulta usuarios:", usuarioData);
-                console.log("Error consulta usuarios:", errorUsuario);
+                const { data: usuarioData, error: errorUsuario } =
+                    await supabaseClient
+                        .from("usuarios")
+                        .select("*")
+                        .eq("usuario", usuarioInput)
+                        .eq("password", passwordInput)
+                        .maybeSingle();
 
                 if (errorUsuario) {
-                    console.error("Error devuelto por Supabase al consultar usuarios:", errorUsuario);
-                    mostrarNotificacion("Error al verificar credenciales: " + (errorUsuario.message || JSON.stringify(errorUsuario)), "error");
+                    mostrarNotificacion(
+                        "Error al verificar credenciales: " +
+                        errorUsuario.message,
+                        "error"
+                    );
+
                     restaurarBotonLogin();
                     return;
                 }
 
                 if (!usuarioData) {
-                    console.warn("No se encontró ningún registro en usuarios con esas credenciales.");
+                    const { count, error: countErr } =
+                        await supabaseClient
+                            .from("usuarios")
+                            .select("*", {
+                                count: "exact",
+                                head: true
+                            });
 
-                    // Verificación de respaldo para arranque inicial: si la tabla usuarios está vacía
-                    // y se ingresa admin / 1234, registrar al administrador inicial en Supabase
-                    console.log("Verificando si la tabla usuarios está vacía en Supabase...");
-                    const { count, error: countErr } = await supabaseClient
-                        .from('usuarios')
-                        .select('*', { count: 'exact', head: true });
-
-                    console.log("Conteo de usuarios en Supabase:", count, "Error conteo:", countErr);
-
-                    if (!countErr && count === 0 && usuarioInput === "admin" && passwordInput === "1234") {
-                        console.log("Tabla usuarios vacía. Registrando usuario admin inicial...");
-                        const { error: insErr } = await supabaseClient
-                            .from('usuarios')
-                            .insert([{
-                                usuario: "admin",
-                                password: "1234",
-                                rol: "admin",
-                                identidad: null
-                            }]);
-
-                        console.log("Resultado inserción admin inicial, error:", insErr);
+                    if (
+                        !countErr &&
+                        count === 0 &&
+                        usuarioInput === "admin" &&
+                        passwordInput === "1234"
+                    ) {
+                        const { error: insErr } =
+                            await supabaseClient
+                                .from("usuarios")
+                                .insert([{
+                                    usuario: "admin",
+                                    password: "1234",
+                                    rol: "admin",
+                                    identidad: null
+                                }]);
 
                         if (!insErr) {
                             sessionStorage.setItem("usuario", "admin");
                             sessionStorage.setItem("rol", "admin");
                             sessionStorage.setItem("nombre", "Administrador Principal");
-                            mostrarNotificacion("¡Administrador inicial registrado en Supabase! Entrando...", "success");
+
+                            mostrarNotificacion(
+                                "Administrador inicial registrado. Entrando...",
+                                "success"
+                            );
+
                             setTimeout(() => {
                                 window.location.href = "inventario.html";
                             }, 800);
+
                             return;
                         }
                     }
 
-                    mostrarNotificacion("Usuario o contraseña incorrectos.", "error");
+                    mostrarNotificacion(
+                        "Usuario o contraseña incorrectos.",
+                        "error"
+                    );
+
                     restaurarBotonLogin();
                     return;
                 }
 
-                // Usuario encontrado con éxito
                 let nombreMostrar = usuarioData.usuario;
 
                 if (usuarioData.identidad) {
-                    console.log("Consultando personal para identidad:", usuarioData.identidad);
-                    const { data: personalData, error: personalError } = await supabaseClient
-                        .from('personal')
-                        .select('nombres_apellidos')
-                        .eq('identidad', usuarioData.identidad)
-                        .maybeSingle();
+                    const { data: personalData } =
+                        await supabaseClient
+                            .from("personal")
+                            .select("nombres_apellidos")
+                            .eq("identidad", usuarioData.identidad)
+                            .maybeSingle();
 
-                    console.log("Resultado consulta personal:", personalData, "Error personal:", personalError);
-
-                    if (personalData && personalData.nombres_apellidos) {
+                    if (personalData?.nombres_apellidos) {
                         nombreMostrar = personalData.nombres_apellidos;
                     }
                 }
 
-                sessionStorage.setItem("usuario", usuarioData.usuario);
-                sessionStorage.setItem("rol", usuarioData.rol);
-                sessionStorage.setItem("nombre", nombreMostrar);
+                sessionStorage.setItem(
+                    "usuario",
+                    usuarioData.usuario
+                );
+
+                sessionStorage.setItem(
+                    "rol",
+                    usuarioData.rol
+                );
+
+                sessionStorage.setItem(
+                    "nombre",
+                    nombreMostrar
+                );
+
                 if (usuarioData.identidad) {
-                    sessionStorage.setItem("identidad", usuarioData.identidad);
+                    sessionStorage.setItem(
+                        "identidad",
+                        usuarioData.identidad
+                    );
                 } else {
                     sessionStorage.removeItem("identidad");
                 }
 
-                const rolTexto = obtenerNombreRol(usuarioData.rol);
-                mostrarNotificacion(`¡Bienvenido/a, ${nombreMostrar}! (${rolTexto})`, "success");
+                mostrarNotificacion(
+                    `¡Bienvenido/a, ${nombreMostrar}! (${obtenerNombreRol(usuarioData.rol)})`,
+                    "success"
+                );
 
                 setTimeout(() => {
                     window.location.href = "inventario.html";
                 }, 800);
 
-            } catch (err) {
-                console.error("Excepción en submit de loginForm:", err);
-                mostrarNotificacion("Error al iniciar sesión: " + (err.message || err), "error");
+            } catch (error) {
+                console.error("Error en login:", error);
+
+                mostrarNotificacion(
+                    "Error al iniciar sesión: " + error.message,
+                    "error"
+                );
+
                 restaurarBotonLogin();
             }
         });
     }
 
-    // ----------------------------------------------------------------------
-    // 2. FORMULARIO DE PRODUCTOS / PRENDAS (inventario.html)
-    // ----------------------------------------------------------------------
-    const productForm = document.getElementById("productForm");
+    /* ----------------------------------------------------------------------
+       2. FORMULARIO DE PRODUCTOS
+       ---------------------------------------------------------------------- */
+
+    const productForm =
+        document.getElementById("productForm");
+
     if (productForm && !productForm.dataset.listenerAdjunto) {
         productForm.dataset.listenerAdjunto = "true";
-        productForm.addEventListener("submit", async (evento) => {
+
+        productForm.addEventListener("submit", async evento => {
             evento.preventDefault();
 
             const rolActual = sessionStorage.getItem("rol");
-            if (rolActual !== "admin" && rolActual !== "encargado_inventario") {
-                mostrarNotificacion("Permiso denegado: Tu rol no permite registrar ni editar prendas.", "error");
+
+            if (
+                rolActual !== "admin" &&
+                rolActual !== "encargado_inventario"
+            ) {
+                mostrarNotificacion(
+                    "No tienes permiso para registrar ni editar prendas.",
+                    "error"
+                );
                 return;
             }
 
-            const nombreIngresado = document.getElementById("nombre").value.trim();
-            const cantidadIngresada = document.getElementById("cantidad").value;
-            const precioIngresado = document.getElementById("precio").value;
+            const nombreIngresado =
+                document.getElementById("nombre").value.trim();
 
-            if (idProductoEditando === null) {
-                console.log("Insertando producto nuevo:", { nombre: nombreIngresado, cantidad: cantidadIngresada, precio: precioIngresado });
-                const { error } = await supabaseClient
-                    .from('productos')
-                    .insert([{
+            const cantidadIngresada =
+                Number(document.getElementById("cantidad").value);
+
+            const precioIngresado =
+                Number(document.getElementById("precio").value);
+
+            if (
+                !nombreIngresado ||
+                !Number.isFinite(cantidadIngresada) ||
+                cantidadIngresada < 0 ||
+                !Number.isFinite(precioIngresado) ||
+                precioIngresado < 0
+            ) {
+                mostrarNotificacion(
+                    "Verifica el nombre, la cantidad y el precio.",
+                    "error"
+                );
+                return;
+            }
+
+            const botonSubmit =
+                productForm.querySelector("button[type='submit']");
+
+            if (botonSubmit) botonSubmit.disabled = true;
+
+            try {
+                if (idProductoEditando === null) {
+
+                    // JSONB recibe un arreglo de URL, no una cadena.
+                    const nuevoProducto = {
                         nombre: nombreIngresado,
-                        cantidad: parseInt(cantidadIngresada),
-                        precio: parseFloat(precioIngresado)
-                    }]);
+                        cantidad: cantidadIngresada,
+                        precio: precioIngresado,
+                        imagenes: imagenProductoGenerada
+                            ? [imagenProductoGenerada]
+                            : []
+                    };
 
-                console.log("Resultado insertar producto:", error);
+                    const { error } = await supabaseClient
+                        .from("productos")
+                        .insert([nuevoProducto]);
 
-                if (error) {
-                    mostrarNotificacion("Error al guardar prenda: " + error.message, "error");
+                    if (error) throw error;
+
+                    mostrarNotificacion(
+                        "¡Prenda agregada al catálogo!",
+                        "success"
+                    );
+
                 } else {
-                    mostrarNotificacion("¡Prenda agregada al catálogo en la nube!", "success");
-                    productForm.reset();
-                    cargarInventario(); 
-                }
-            } else {
-                console.log("Actualizando producto id:", idProductoEditando);
-                const { error } = await supabaseClient
-                    .from('productos')
-                    .update({
+
+                    const productoActualizado = {
                         nombre: nombreIngresado,
-                        cantidad: parseInt(cantidadIngresada),
-                        precio: parseFloat(precioIngresado)
-                    })
-                    .eq('id', idProductoEditando);
+                        cantidad: cantidadIngresada,
+                        precio: precioIngresado
+                    };
 
-                console.log("Resultado actualizar producto:", error);
+                    /*
+                       Si se generó una fotografía nueva, se guarda como
+                       arreglo JSONB. Si no se generó otra, no se modifica
+                       imagenes y se conserva la fotografía existente.
+                    */
 
-                if (error) {
-                    mostrarNotificacion("Error al actualizar prenda: " + error.message, "error");
-                } else {
-                    mostrarNotificacion("¡Prenda actualizada con éxito!", "success");
-                    cancelarEdicionProducto();
-                    cargarInventario();
+                    if (imagenProductoGenerada) {
+                        productoActualizado.imagenes = [
+                            imagenProductoGenerada
+                        ];
+                    }
+
+                    const { error } = await supabaseClient
+                        .from("productos")
+                        .update(productoActualizado)
+                        .eq("id", idProductoEditando);
+
+                    if (error) throw error;
+
+                    mostrarNotificacion(
+                        "¡Prenda actualizada con éxito!",
+                        "success"
+                    );
                 }
+
+                cancelarEdicionProducto();
+
+                await cargarInventario();
+
+                if (document.getElementById("catalogoPublicoGrid")) {
+                    await cargarCatalogoPublico();
+                }
+
+            } catch (error) {
+                console.error("Error al guardar producto:", error);
+
+                mostrarNotificacion(
+                    "Error al guardar prenda: " + error.message,
+                    "error"
+                );
+
+            } finally {
+                if (botonSubmit) botonSubmit.disabled = false;
             }
         });
     }
 
-    const btnCancelarEdicion = document.getElementById("btnCancelarEdicion");
-    if (btnCancelarEdicion && !btnCancelarEdicion.dataset.listenerAdjunto) {
-        btnCancelarEdicion.dataset.listenerAdjunto = "true";
-        btnCancelarEdicion.addEventListener("click", cancelarEdicionProducto);
+    /* ----------------------------------------------------------------------
+       3. BOTÓN PARA GENERAR FOTOGRAFÍA
+       ---------------------------------------------------------------------- */
+
+    const btnGenerarFotografia =
+        document.getElementById("btnGenerarFotografia");
+
+    if (
+        btnGenerarFotografia &&
+        !btnGenerarFotografia.dataset.listenerAdjunto
+    ) {
+        btnGenerarFotografia.dataset.listenerAdjunto = "true";
+
+        btnGenerarFotografia.addEventListener(
+            "click",
+            generarFotografiaProducto
+        );
     }
 
-    // ----------------------------------------------------------------------
-    // 3. FORMULARIO DE PERSONAL (personal.html)
-    // ----------------------------------------------------------------------
-    const personalForm = document.getElementById("personalForm");
+    /* ----------------------------------------------------------------------
+       4. CANCELAR EDICIÓN DE PRODUCTO
+       ---------------------------------------------------------------------- */
+
+    const btnCancelarEdicion =
+        document.getElementById("btnCancelarEdicion");
+
+    if (
+        btnCancelarEdicion &&
+        !btnCancelarEdicion.dataset.listenerAdjunto
+    ) {
+        btnCancelarEdicion.dataset.listenerAdjunto = "true";
+
+        btnCancelarEdicion.addEventListener(
+            "click",
+            cancelarEdicionProducto
+        );
+    }
+
+    /* ----------------------------------------------------------------------
+       5. FORMULARIO DE PERSONAL
+       ---------------------------------------------------------------------- */
+
+    const personalForm =
+        document.getElementById("personalForm");
+
     if (personalForm && !personalForm.dataset.listenerAdjunto) {
         personalForm.dataset.listenerAdjunto = "true";
-        personalForm.addEventListener("submit", async (e) => {
+
+        personalForm.addEventListener("submit", async e => {
             e.preventDefault();
 
-            const rolActual = sessionStorage.getItem("rol");
-            if (rolActual !== "admin") {
-                mostrarNotificacion("Permiso denegado: Solo el Administrador puede registrar colaboradores.", "error");
+            if (sessionStorage.getItem("rol") !== "admin") {
+                mostrarNotificacion(
+                    "Solo el Administrador puede registrar colaboradores.",
+                    "error"
+                );
                 return;
             }
 
@@ -1376,44 +1989,71 @@ function inicializarFormulariosYEventos() {
                 direccion: document.getElementById("direccion").value.trim()
             };
 
-            console.log("Insertando colaborador en Supabase:", nuevoColaborador);
-            const { error } = await supabaseClient.from('personal').insert([nuevoColaborador]);
-            console.log("Resultado insertar personal:", error);
+            const { error } = await supabaseClient
+                .from("personal")
+                .insert([nuevoColaborador]);
 
             if (error) {
-                mostrarNotificacion("Error al registrar colaborador: " + error.message, "error");
-            } else {
-                mostrarNotificacion("¡Colaborador registrado en el Equipo de la Boutique!", "success");
-                personalForm.reset();
-                cargarPersonal();
-                cargarSelectEmpleados();
-            }
-        });
-    }
-
-    // ----------------------------------------------------------------------
-    // 4. FORMULARIO DE CREAR USUARIOS (personal.html)
-    // ----------------------------------------------------------------------
-    const usuarioForm = document.getElementById("usuarioForm");
-    if (usuarioForm && !usuarioForm.dataset.listenerAdjunto) {
-        usuarioForm.dataset.listenerAdjunto = "true";
-        usuarioForm.addEventListener("submit", async (e) => {
-            e.preventDefault();
-
-            const rolActual = sessionStorage.getItem("rol");
-            if (rolActual !== "admin") {
-                mostrarNotificacion("Permiso denegado: Solo el Administrador puede registrar cuentas de usuario.", "error");
+                mostrarNotificacion(
+                    "Error al registrar colaborador: " + error.message,
+                    "error"
+                );
                 return;
             }
 
-            const usuarioVal = document.getElementById("nuevoUsuario").value.trim();
-            const passwordVal = document.getElementById("nuevoPassword").value.trim();
-            const rolVal = document.getElementById("nuevoRol").value;
-            const identidadSelect = document.getElementById("nuevoEmpleadoIdentidad");
-            const identidadVal = (identidadSelect && identidadSelect.value.trim()) ? identidadSelect.value.trim() : null;
+            mostrarNotificacion(
+                "¡Colaborador registrado correctamente!",
+                "success"
+            );
+
+            personalForm.reset();
+
+            await cargarPersonal();
+            await cargarSelectEmpleados();
+        });
+    }
+
+    /* ----------------------------------------------------------------------
+       6. FORMULARIO DE CREAR USUARIOS
+       ---------------------------------------------------------------------- */
+
+    const usuarioForm =
+        document.getElementById("usuarioForm");
+
+    if (usuarioForm && !usuarioForm.dataset.listenerAdjunto) {
+        usuarioForm.dataset.listenerAdjunto = "true";
+
+        usuarioForm.addEventListener("submit", async e => {
+            e.preventDefault();
+
+            if (sessionStorage.getItem("rol") !== "admin") {
+                mostrarNotificacion(
+                    "Solo el Administrador puede registrar usuarios.",
+                    "error"
+                );
+                return;
+            }
+
+            const usuarioVal =
+                document.getElementById("nuevoUsuario").value.trim();
+
+            const passwordVal =
+                document.getElementById("nuevoPassword").value.trim();
+
+            const rolVal =
+                document.getElementById("nuevoRol").value;
+
+            const identidadSelect =
+                document.getElementById("nuevoEmpleadoIdentidad");
+
+            const identidadVal =
+                identidadSelect?.value.trim() || null;
 
             if (!usuarioVal || !passwordVal || !rolVal) {
-                mostrarNotificacion("Por favor completa los campos obligatorios del usuario.", "error");
+                mostrarNotificacion(
+                    "Completa los campos obligatorios del usuario.",
+                    "error"
+                );
                 return;
             }
 
@@ -1424,44 +2064,52 @@ function inicializarFormulariosYEventos() {
                 identidad: identidadVal
             };
 
-            console.log("Insertando nuevo usuario en Supabase:", nuevoUsuarioObj);
+            const { error } = await supabaseClient
+                .from("usuarios")
+                .insert([nuevoUsuarioObj]);
 
-            try {
-                const { data, error } = await supabaseClient
-                    .from('usuarios')
-                    .insert([nuevoUsuarioObj])
-                    .select();
-
-                console.log("Resultado inserción usuario:", data, "Error:", error);
-
-                if (error) {
-                    console.error("Error al crear usuario:", error);
-                    mostrarNotificacion("Error al crear usuario: " + (error.message || JSON.stringify(error)), "error");
-                    return;
-                }
-
-                mostrarNotificacion(`¡Cuenta de usuario "${usuarioVal}" creada exitosamente!`, "success");
-                usuarioForm.reset();
-                await cargarUsuarios();
-            } catch (err) {
-                console.error("Excepción al crear usuario:", err);
-                mostrarNotificacion("Error al crear usuario: " + (err.message || err), "error");
+            if (error) {
+                mostrarNotificacion(
+                    "Error al crear usuario: " + error.message,
+                    "error"
+                );
+                return;
             }
+
+            mostrarNotificacion(
+                `¡Cuenta "${usuarioVal}" creada exitosamente!`,
+                "success"
+            );
+
+            usuarioForm.reset();
+
+            await cargarUsuarios();
         });
     }
 
-    // ----------------------------------------------------------------------
-    // 5. FORMULARIO Y TABLA DE PROVEEDORES (proveedores.html)
-    // ----------------------------------------------------------------------
-    const proveedoresForm = document.getElementById("proveedoresForm");
+    /* ----------------------------------------------------------------------
+       7. FORMULARIO DE PROVEEDORES
+       ---------------------------------------------------------------------- */
+
+    const proveedoresForm =
+        document.getElementById("proveedoresForm");
+
     if (proveedoresForm && !proveedoresForm.dataset.listenerAdjunto) {
         proveedoresForm.dataset.listenerAdjunto = "true";
-        proveedoresForm.addEventListener("submit", async (e) => {
+
+        proveedoresForm.addEventListener("submit", async e => {
             e.preventDefault();
 
             const rolActual = sessionStorage.getItem("rol");
-            if (rolActual !== "admin" && rolActual !== "encargado_proveedores") {
-                mostrarNotificacion("Permiso denegado: Tu rol no permite gestionar proveedores.", "error");
+
+            if (
+                rolActual !== "admin" &&
+                rolActual !== "encargado_proveedores"
+            ) {
+                mostrarNotificacion(
+                    "No tienes permiso para gestionar proveedores.",
+                    "error"
+                );
                 return;
             }
 
@@ -1474,47 +2122,67 @@ function inicializarFormulariosYEventos() {
             };
 
             let resultado;
+
             if (proveedorEnEdicionId !== null) {
-                console.log("Actualizando proveedor:", proveedorEnEdicionId, proveedor);
                 resultado = await supabaseClient
                     .from("proveedores")
                     .update(proveedor)
                     .eq("codigo", proveedorEnEdicionId);
             } else {
-                console.log("Insertando proveedor:", proveedor);
                 resultado = await supabaseClient
                     .from("proveedores")
                     .insert([proveedor]);
             }
 
-            console.log("Resultado guardar proveedor:", resultado);
-
             if (resultado.error) {
-                mostrarNotificacion("Error al guardar proveedor: " + resultado.error.message, "error");
+                mostrarNotificacion(
+                    "Error al guardar proveedor: " + resultado.error.message,
+                    "error"
+                );
                 return;
             }
 
-            if (proveedorEnEdicionId !== null) {
-                mostrarNotificacion("Proveedor actualizado correctamente.", "success");
-            } else {
-                mostrarNotificacion("Proveedor registrado correctamente.", "success");
-            }
+            mostrarNotificacion(
+                proveedorEnEdicionId !== null
+                    ? "Proveedor actualizado correctamente."
+                    : "Proveedor registrado correctamente.",
+                "success"
+            );
 
             cancelarEdicionProveedor();
+
             await cargarProveedores();
         });
     }
 
-    const proveedoresTableBody = document.getElementById("proveedoresTableBody");
-    if (proveedoresTableBody && !proveedoresTableBody.dataset.listenerAdjunto) {
+    /* ----------------------------------------------------------------------
+       8. BOTONES DE EDITAR Y ELIMINAR PROVEEDORES
+       ---------------------------------------------------------------------- */
+
+    const proveedoresTableBody =
+        document.getElementById("proveedoresTableBody");
+
+    if (
+        proveedoresTableBody &&
+        !proveedoresTableBody.dataset.listenerAdjunto
+    ) {
         proveedoresTableBody.dataset.listenerAdjunto = "true";
-        proveedoresTableBody.addEventListener("click", async (e) => {
+
+        proveedoresTableBody.addEventListener("click", async e => {
             const boton = e.target.closest("button[data-accion]");
+
             if (!boton) return;
 
             const rolActual = sessionStorage.getItem("rol");
-            if (rolActual !== "admin" && rolActual !== "encargado_proveedores") {
-                mostrarNotificacion("Permiso denegado: No tienes permisos para modificar proveedores.", "error");
+
+            if (
+                rolActual !== "admin" &&
+                rolActual !== "encargado_proveedores"
+            ) {
+                mostrarNotificacion(
+                    "No tienes permisos para modificar proveedores.",
+                    "error"
+                );
                 return;
             }
 
@@ -1522,105 +2190,173 @@ function inicializarFormulariosYEventos() {
             const accion = boton.dataset.accion;
 
             if (accion === "editar") {
-                console.log("Buscando proveedor para editar, codigo:", codigo);
                 const { data, error } = await supabaseClient
                     .from("proveedores")
                     .select("*")
                     .eq("codigo", codigo)
                     .single();
 
-                console.log("Resultado buscar proveedor:", data, "Error:", error);
-
                 if (error) {
-                    mostrarNotificacion("Error al buscar proveedor: " + error.message, "error");
+                    mostrarNotificacion(
+                        "Error al buscar proveedor: " + error.message,
+                        "error"
+                    );
                     return;
                 }
 
                 proveedorEnEdicionId = codigo;
-                document.getElementById("empresa").value = data.empresa || "";
-                document.getElementById("encargado").value = data.encargado || "";
-                document.getElementById("telefono_prov").value = data.telefono || "";
-                document.getElementById("direccion_prov").value = data.direccion || "";
-                document.getElementById("correo").value = data.correo || "";
 
-                const titulo = document.getElementById("tituloProveedor");
-                if (titulo) titulo.textContent = "Editar proveedor";
+                document.getElementById("empresa").value =
+                    data.empresa || "";
 
-                const botonGuardar = document.getElementById("btnGuardarProveedor");
+                document.getElementById("encargado").value =
+                    data.encargado || "";
+
+                document.getElementById("telefono_prov").value =
+                    data.telefono || "";
+
+                document.getElementById("direccion_prov").value =
+                    data.direccion || "";
+
+                document.getElementById("correo").value =
+                    data.correo || "";
+
+                const titulo =
+                    document.getElementById("tituloProveedor");
+
+                if (titulo) {
+                    titulo.textContent = "Editar proveedor";
+                }
+
+                const botonGuardar =
+                    document.getElementById("btnGuardarProveedor");
+
                 if (botonGuardar) {
                     botonGuardar.innerHTML = `
                         <i data-lucide="save" class="w-4 h-4"></i>
                         <span>Actualizar proveedor</span>
                     `;
-                    refrescarIconos();
                 }
 
-                const botonCancelar = document.getElementById("btnCancelarProveedor");
-                if (botonCancelar) botonCancelar.classList.remove("hidden");
+                document.getElementById("btnCancelarProveedor")
+                    ?.classList.remove("hidden");
+
+                refrescarIconos();
             }
 
             if (accion === "eliminar") {
-                const confirmar = await mostrarConfirmacion("¿Estás seguro de eliminar este proveedor?");
+                const confirmar = await mostrarConfirmacion(
+                    "¿Estás seguro de eliminar este proveedor?"
+                );
+
                 if (!confirmar) return;
 
-                console.log("Eliminando proveedor codigo:", codigo);
                 const { error } = await supabaseClient
                     .from("proveedores")
                     .delete()
                     .eq("codigo", codigo);
 
-                console.log("Resultado eliminar proveedor:", error);
-
                 if (error) {
-                    mostrarNotificacion("Error al eliminar proveedor: " + error.message, "error");
+                    mostrarNotificacion(
+                        "Error al eliminar proveedor: " + error.message,
+                        "error"
+                    );
                     return;
                 }
 
-                mostrarNotificacion("Proveedor eliminado correctamente.", "success");
+                mostrarNotificacion(
+                    "Proveedor eliminado correctamente.",
+                    "success"
+                );
+
                 await cargarProveedores();
             }
         });
     }
 
-    const btnCancelarProveedor = document.getElementById("btnCancelarProveedor");
-    if (btnCancelarProveedor && !btnCancelarProveedor.dataset.listenerAdjunto) {
+    /* ----------------------------------------------------------------------
+       9. CANCELAR EDICIÓN DE PROVEEDOR
+       ---------------------------------------------------------------------- */
+
+    const btnCancelarProveedor =
+        document.getElementById("btnCancelarProveedor");
+
+    if (
+        btnCancelarProveedor &&
+        !btnCancelarProveedor.dataset.listenerAdjunto
+    ) {
         btnCancelarProveedor.dataset.listenerAdjunto = "true";
-        btnCancelarProveedor.addEventListener("click", cancelarEdicionProveedor);
+
+        btnCancelarProveedor.addEventListener(
+            "click",
+            cancelarEdicionProveedor
+        );
     }
 
-    // ----------------------------------------------------------------------
-    // 6. BUSCADOR EN CATÁLOGO PÚBLICO (index.html)
-    // ----------------------------------------------------------------------
-    const inputBusquedaCatalogo = document.getElementById("inputBusquedaCatalogo");
-    if (inputBusquedaCatalogo && !inputBusquedaCatalogo.dataset.listenerAdjunto) {
+    /* ----------------------------------------------------------------------
+       10. BUSCADOR DEL CATÁLOGO PÚBLICO
+       ---------------------------------------------------------------------- */
+
+    const inputBusquedaCatalogo =
+        document.getElementById("inputBusquedaCatalogo");
+
+    if (
+        inputBusquedaCatalogo &&
+        !inputBusquedaCatalogo.dataset.listenerAdjunto
+    ) {
         inputBusquedaCatalogo.dataset.listenerAdjunto = "true";
-        inputBusquedaCatalogo.addEventListener("input", (e) => {
+
+        inputBusquedaCatalogo.addEventListener("input", e => {
             filtrarCatalogoPublico(e.target.value);
         });
     }
 }
 
 /* ==========================================================================
-   PASO 10: INICIALIZACIÓN GENERAL DEL SISTEMA AL CARGAR LA PÁGINA
+   PASO 11: INICIALIZACIÓN GENERAL DEL SISTEMA
    ========================================================================== */
+
 function inicializarSistema() {
     refrescarIconos();
+
     inicializarFormulariosYEventos();
+
     configurarSidebarYHeader();
+
     aplicarPermisosInventario();
 
-    if (document.getElementById("catalogoPublicoGrid")) cargarCatalogoPublico();
-    if (document.getElementById("productTableBody")) cargarInventario();
-    if (document.getElementById("personalTableBody")) cargarPersonal();
+    if (document.getElementById("catalogoPublicoGrid")) {
+        cargarCatalogoPublico();
+    }
+
+    if (document.getElementById("productTableBody")) {
+        cargarInventario();
+    }
+
+    if (document.getElementById("personalTableBody")) {
+        cargarPersonal();
+    }
+
     if (document.getElementById("usuariosTableBody")) {
         cargarUsuarios();
         cargarSelectEmpleados();
     }
-    if (document.getElementById("proveedoresTableBody")) cargarProveedores();
+
+    if (document.getElementById("proveedoresTableBody")) {
+        cargarProveedores();
+    }
 }
 
+/* ==========================================================================
+   INICIO DEL SISTEMA
+   ========================================================================== */
+
 if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", inicializarSistema);
+    document.addEventListener(
+        "DOMContentLoaded",
+        inicializarSistema
+    );
 } else {
     inicializarSistema();
 }
+

@@ -1,4 +1,3 @@
-
 /* ==========================================================================
    BOUTIQUE LOS ING'S - SISTEMA WEB INTEGRAL
    Supabase, autenticación, inventario, fotografías IA,
@@ -2359,4 +2358,5 @@ if (document.readyState === "loading") {
 } else {
     inicializarSistema();
 }
+
 

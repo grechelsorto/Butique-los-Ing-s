@@ -364,16 +364,18 @@ function obtenerNombreRol(rol) {
 
 function protegerPagina(rolesPermitidos = []) {
     const usuario = sessionStorage.getItem("usuario");
-    const rol = sessionStorage.getItem("rol");
+    const rol = (sessionStorage.getItem("rol") || "").trim().toLowerCase();
 
     if (!usuario || !rol) {
         window.location.replace("login.html");
         return false;
     }
 
+    const rolesNorm = (rolesPermitidos || []).map(r => String(r).trim().toLowerCase());
+
     if (
-        rolesPermitidos.length > 0 &&
-        !rolesPermitidos.includes(rol)
+        rolesNorm.length > 0 &&
+        !rolesNorm.includes(rol)
     ) {
         let destino = "inventario.html";
 
@@ -1075,9 +1077,280 @@ async function cargarProductosEjemplo() {
 
 /* ==========================================================================
    PASO 6: MÓDULO DE PERSONAL Y USUARIOS
-   Tabla: usuarios
-   Columnas: id, nombre, usuario, password, rol, activo, creado_en
+   Tabla personal: identidad (PK), nombres_apellidos, genero, telefono, direccion
+   Tabla usuarios: usuario (PK), password, rol, identidad (FK)
+   Roles: admin, encargado_inventario, encargado_proveedores, asesor
    ========================================================================== */
+
+function actualizarResumenPersonal(listaPersonal = []) {
+    const elTotal = document.getElementById("statTotalPersonal");
+    const elMasc = document.getElementById("statPersonalMasculino");
+    const elFem = document.getElementById("statPersonalFemenino");
+
+    const data = Array.isArray(listaPersonal) ? listaPersonal : [];
+    const total = data.length;
+
+    const masculino = data.filter(p => {
+        const g = String(p?.genero || "").toLowerCase().trim();
+        return g === "masculino" || g === "m" || g.startsWith("masc");
+    }).length;
+
+    const femenino = data.filter(p => {
+        const g = String(p?.genero || "").toLowerCase().trim();
+        return g === "femenino" || g === "f" || g.startsWith("fem");
+    }).length;
+
+    if (elTotal) elTotal.textContent = total;
+    if (elMasc) elMasc.textContent = masculino;
+    if (elFem) elFem.textContent = femenino;
+}
+
+async function cargarPersonal() {
+    const tableBody = document.getElementById("personalTableBody");
+    if (!tableBody) return;
+
+    tableBody.innerHTML = `
+        <tr>
+            <td colspan="6" class="py-10 text-center text-slate-400">
+                <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-800/60 border border-pink-500/25 text-pink-300 text-xs font-medium">
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-pink-400"></i>
+                    <span>Cargando equipo de la boutique desde Supabase...</span>
+                </div>
+            </td>
+        </tr>
+    `;
+    refrescarIconos();
+
+    console.log("Cargando personal desde Supabase...");
+
+    try {
+        const { data: listaPersonal, error } = await supabaseClient
+            .from("personal")
+            .select("identidad, nombres_apellidos, genero, telefono, direccion");
+
+        console.log("Resultado carga personal:", listaPersonal);
+        console.log("Error carga personal:", error);
+
+        if (error) {
+            console.error("Error al cargar personal:", error);
+            mostrarNotificacion("Error al cargar el equipo: " + (error.message || JSON.stringify(error)), "error");
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="py-8 text-center text-rose-400">
+                        <div class="inline-flex flex-col items-center gap-2 max-w-md mx-auto p-4 rounded-xl bg-rose-500/10 border border-rose-500/40 text-rose-300 shadow-xl">
+                            <div class="flex items-center gap-2 text-rose-400 font-semibold text-sm">
+                                <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0"></i>
+                                <span>Error al consultar la tabla personal en Supabase</span>
+                            </div>
+                            <p class="text-xs text-rose-200 font-mono break-all">${escaparAtributo(error.message || JSON.stringify(error))}</p>
+                            ${error.hint ? `<p class="text-[11px] text-slate-400">Pista: ${escaparAtributo(error.hint)}</p>` : ""}
+                            ${error.details ? `<p class="text-[11px] text-slate-400">Detalles: ${escaparAtributo(error.details)}</p>` : ""}
+                        </div>
+                    </td>
+                </tr>
+            `;
+            refrescarIconos();
+            actualizarResumenPersonal([]);
+            return;
+        }
+
+        actualizarResumenPersonal(listaPersonal || []);
+
+        if (!listaPersonal || listaPersonal.length === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="py-10 text-center text-slate-400">
+                        <div class="space-y-2">
+                            <div class="w-12 h-12 mx-auto rounded-2xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
+                                <i data-lucide="user-x" class="w-6 h-6"></i>
+                            </div>
+                            <p class="font-medium text-slate-300">No hay integrantes en el equipo aún</p>
+                            <p class="text-xs text-slate-500">Completa el formulario para registrar al primer colaborador de la boutique.</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            refrescarIconos();
+            return;
+        }
+
+        tableBody.innerHTML = "";
+        listaPersonal.forEach(persona => {
+            const fila = document.createElement("tr");
+            fila.className = "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors duration-150";
+            fila.innerHTML = `
+                <td class="py-3.5 px-4 text-pink-300 font-semibold whitespace-nowrap">${escaparAtributo(persona.identidad || "")}</td>
+                <td class="py-3.5 px-4 text-slate-100 font-medium">${escaparAtributo(persona.nombres_apellidos || "")}</td>
+                <td class="py-3.5 px-4 text-slate-300">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-500/15 text-violet-200 border border-violet-500/30">
+                        ${escaparAtributo(persona.genero || "No especificado")}
+                    </span>
+                </td>
+                <td class="py-3.5 px-4 text-slate-300 whitespace-nowrap">${escaparAtributo(persona.telefono || "-")}</td>
+                <td class="py-3.5 px-4 text-slate-400">${escaparAtributo(persona.direccion || "-")}</td>
+                <td class="py-3.5 px-4 text-center">
+                    <button type="button"
+                            data-identidad="${escaparAtributo(persona.identidad || "")}"
+                            class="btnEliminarPersonal inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 hover:border-rose-400/50 transition">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        <span>Eliminar</span>
+                    </button>
+                </td>
+            `;
+            const btnEliminar = fila.querySelector(".btnEliminarPersonal");
+            if (btnEliminar) {
+                btnEliminar.addEventListener("click", () => eliminarPersonal(persona.identidad));
+            }
+            tableBody.appendChild(fila);
+        });
+
+        refrescarIconos();
+
+    } catch (errEx) {
+        console.error("Excepción inesperada en cargarPersonal:", errEx);
+        mostrarNotificacion("Error inesperado al cargar el personal: " + (errEx.message || errEx), "error");
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="6" class="py-8 text-center text-rose-400">
+                    <div class="inline-flex flex-col items-center gap-2 max-w-md mx-auto p-4 rounded-xl bg-rose-500/10 border border-rose-500/40 text-rose-300 shadow-xl">
+                        <div class="flex items-center gap-2 text-rose-400 font-semibold text-sm">
+                            <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0"></i>
+                            <span>Error de ejecución al cargar personal</span>
+                        </div>
+                        <p class="text-xs text-rose-200 font-mono break-all">${escaparAtributo(errEx.message || String(errEx))}</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        refrescarIconos();
+        actualizarResumenPersonal([]);
+    }
+}
+
+async function guardarPersonal(evento) {
+    if (evento && evento.preventDefault) evento.preventDefault();
+
+    if (sessionStorage.getItem("rol") !== "admin") {
+        mostrarNotificacion("Solo el Administrador puede registrar colaboradores.", "error");
+        return;
+    }
+
+    const elIdentidad = document.getElementById("identidad");
+    const elNombres = document.getElementById("nombres_apellidos");
+    const elGenero = document.getElementById("genero");
+    const elTelefono = document.getElementById("telefono");
+    const elDireccion = document.getElementById("direccion");
+
+    const identidad = elIdentidad?.value.trim();
+    const nombres_apellidos = elNombres?.value.trim();
+    const genero = elGenero?.value;
+    const telefono = elTelefono?.value.trim() || "";
+    const direccion = elDireccion?.value.trim() || "";
+
+    if (!identidad || !nombres_apellidos || !genero) {
+        mostrarNotificacion("Por favor completa los campos requeridos (Identidad, Nombres y Género).", "error");
+        return;
+    }
+
+    const nuevoColaborador = {
+        identidad,
+        nombres_apellidos,
+        genero,
+        telefono,
+        direccion
+    };
+
+    console.log("Insertando colaborador en Supabase:", nuevoColaborador);
+
+    try {
+        const { error } = await supabaseClient
+            .from("personal")
+            .insert([nuevoColaborador]);
+
+        console.log("Resultado insertar personal:", error);
+
+        if (error) {
+            mostrarNotificacion("Error al registrar colaborador: " + error.message, "error");
+            return;
+        }
+
+        mostrarNotificacion("¡Colaborador registrado en el Equipo de la Boutique!", "success");
+        document.getElementById("personalForm")?.reset();
+        await cargarPersonal();
+        await cargarSelectEmpleados();
+    } catch (errEx) {
+        console.error("Excepción en guardarPersonal:", errEx);
+        mostrarNotificacion("Error inesperado al registrar colaborador: " + (errEx.message || errEx), "error");
+    }
+}
+
+async function eliminarPersonal(identidad) {
+    if (sessionStorage.getItem("rol") !== "admin") {
+        mostrarNotificacion("Solo el Administrador puede retirar colaboradores.", "error");
+        return;
+    }
+
+    const confirmado = await mostrarConfirmacion(
+        "¿Estás seguro de que deseas retirar a este integrante del Equipo de la Boutique?"
+    );
+    if (!confirmado) return;
+
+    try {
+        console.log("Eliminando personal con identidad:", identidad);
+        const { error } = await supabaseClient
+            .from("personal")
+            .delete()
+            .eq("identidad", identidad);
+
+        console.log("Resultado eliminar personal:", error);
+
+        if (error) {
+            mostrarNotificacion("Error al eliminar integrante: " + error.message, "error");
+            return;
+        }
+
+        mostrarNotificacion("¡Integrante retirado del equipo correctamente!", "success");
+        await cargarPersonal();
+        await cargarSelectEmpleados();
+        await cargarUsuarios();
+    } catch (errEx) {
+        console.error("Excepción en eliminarPersonal:", errEx);
+        mostrarNotificacion("Error al eliminar integrante: " + (errEx.message || errEx), "error");
+    }
+}
+
+async function cargarSelectEmpleados() {
+    const select = document.getElementById("nuevoEmpleadoIdentidad");
+    if (!select) return;
+
+    try {
+        console.log("Consultando personal para cargarSelectEmpleados()...");
+        const { data: empleados, error } = await supabaseClient
+            .from("personal")
+            .select("identidad, nombres_apellidos")
+            .order("nombres_apellidos", { ascending: true });
+
+        console.log("Resultado select empleados:", empleados, "Error:", error);
+
+        if (error) {
+            console.error("Error al cargar selector de empleados:", error);
+            return;
+        }
+
+        select.innerHTML = `<option value="">-- Sin vincular a colaborador --</option>`;
+
+        if (empleados && empleados.length > 0) {
+            empleados.forEach(emp => {
+                const opt = document.createElement("option");
+                opt.value = emp.identidad;
+                opt.textContent = `${emp.nombres_apellidos} (${emp.identidad})`;
+                select.appendChild(opt);
+            });
+        }
+    } catch (err) {
+        console.error("Excepción en cargarSelectEmpleados (no bloqueante):", err);
+    }
+}
 
 async function cargarUsuarios() {
     const tableBody = document.getElementById("usuariosTableBody");
@@ -1085,119 +1358,255 @@ async function cargarUsuarios() {
 
     tableBody.innerHTML = `
         <tr>
-            <td colspan="4" class="py-10 text-center text-slate-400">
-                <i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2"></i>
-                Cargando personal...
+            <td colspan="4" class="py-8 text-center text-slate-400">
+                <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-800/60 border border-pink-500/25 text-pink-300 text-xs font-medium">
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-pink-400"></i>
+                    <span>Cargando cuentas de usuario desde Supabase...</span>
+                </div>
             </td>
         </tr>
     `;
     refrescarIconos();
 
-    const { data: usuarios, error } = await supabaseClient
-        .from("usuarios")
-        .select("*")
-        .order("id", { ascending: true });
+    console.log("Ejecutando cargarUsuarios(). Consultando tabla 'usuarios'...");
 
-    if (error) {
-        mostrarNotificacion("Error al cargar personal: " + error.message, "error");
+    try {
+        const { data: usuarios, error } = await supabaseClient
+            .from("usuarios")
+            .select("*")
+            .order("usuario", { ascending: true });
+
+        console.log("Resultado consulta usuarios:", usuarios, "Error:", error);
+
+        if (error) {
+            console.error("Error al cargar usuarios:", error);
+            mostrarNotificacion("Error al cargar usuarios: " + (error.message || JSON.stringify(error)), "error");
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="py-8 text-center">
+                        <div class="inline-flex flex-col items-center gap-2 max-w-md mx-auto p-4 rounded-xl bg-rose-500/10 border border-rose-500/40 text-rose-300 shadow-xl">
+                            <div class="flex items-center gap-2 text-rose-400 font-semibold text-sm">
+                                <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0"></i>
+                                <span>Error al consultar la tabla usuarios en Supabase</span>
+                            </div>
+                            <p class="text-xs text-rose-200 font-mono break-all">${escaparAtributo(error.message || JSON.stringify(error))}</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            refrescarIconos();
+            return;
+        }
+
+        if (!usuarios || usuarios.length === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="py-10 text-center text-slate-400">
+                        <div class="space-y-2">
+                            <div class="w-10 h-10 mx-auto rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
+                                <i data-lucide="user-x" class="w-5 h-5"></i>
+                            </div>
+                            <p class="font-medium text-slate-300 text-sm">No hay cuentas de usuario registradas aún</p>
+                            <p class="text-xs text-slate-500">Usa el formulario de la izquierda para crear la primera cuenta de acceso.</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            refrescarIconos();
+            return;
+        }
+
+        // Consultar colaboradores de personal para resolver identidad -> nombres_apellidos
+        const mapaPersonal = {};
+        try {
+            const { data: personalList } = await supabaseClient
+                .from("personal")
+                .select("identidad, nombres_apellidos");
+            if (personalList) {
+                personalList.forEach(p => {
+                    if (p.identidad) mapaPersonal[p.identidad] = p.nombres_apellidos;
+                });
+            }
+        } catch (ePersonal) {
+            console.warn("No se pudo mapear personal en usuarios:", ePersonal);
+        }
+
+        const usuarioLogueado = sessionStorage.getItem("usuario");
+        const usuarioLogueadoId = Number(sessionStorage.getItem("usuarioId"));
+        tableBody.innerHTML = "";
+
+        usuarios.forEach(u => {
+            const fila = document.createElement("tr");
+            fila.className = "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors duration-150";
+
+            // Columna 1: Usuario
+            const celdaUsuario = `
+                <div class="flex items-center gap-2">
+                    <i data-lucide="user" class="w-4 h-4 text-pink-400"></i>
+                    <span class="font-semibold text-slate-100">${escaparAtributo(u.usuario || "-")}</span>
+                </div>
+            `;
+
+            // Columna 2: Rol en Sistema (u.rol con badge estilizado y su nombre legible)
+            const rolCodigo = String(u.rol || "").trim().toLowerCase();
+            let rolBadge = "";
+            if (rolCodigo === "admin") {
+                rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-pink-500/15 text-pink-300 border border-pink-500/35"><i data-lucide="shield" class="w-3 h-3"></i>Administrador</span>`;
+            } else if (rolCodigo === "encargado_inventario") {
+                rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/35"><i data-lucide="shirt" class="w-3 h-3"></i>Encargado Inventario</span>`;
+            } else if (rolCodigo === "encargado_proveedores") {
+                rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/35"><i data-lucide="truck" class="w-3 h-3"></i>Encargado Proveedores</span>`;
+            } else if (rolCodigo === "asesor") {
+                rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/35"><i data-lucide="tag" class="w-3 h-3"></i>Asesor de Moda</span>`;
+            } else {
+                rolBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-700/50 text-slate-200 border border-slate-600"><i data-lucide="user-check" class="w-3 h-3"></i>${escaparAtributo(obtenerNombreRol(u.rol))}</span>`;
+            }
+
+            // Columna 3: Colaborador Vinculado
+            let colaboradorTexto = `<span class="text-xs text-slate-500 italic">Sin vincular</span>`;
+            if (u.identidad) {
+                const nombreReal = mapaPersonal[u.identidad] || u.nombre || "Colaborador";
+                colaboradorTexto = `
+                    <div>
+                        <span class="text-sm font-medium text-slate-200 block">${escaparAtributo(nombreReal)}</span>
+                        <span class="text-[11px] text-pink-300/80 font-mono">${escaparAtributo(u.identidad)}</span>
+                    </div>
+                `;
+            } else if (u.nombre && u.nombre !== u.usuario) {
+                colaboradorTexto = `
+                    <span class="text-sm font-medium text-slate-200 block">${escaparAtributo(u.nombre)}</span>
+                `;
+            }
+
+            // Columna 4: Acciones
+            const esMismoUsuario = u.usuario === usuarioLogueado || (u.id && Number(u.id) === usuarioLogueadoId);
+            let celdaAccion = "";
+            if (esMismoUsuario) {
+                celdaAccion = `
+                    <span class="inline-flex items-center gap-1 text-[11px] text-pink-400 bg-pink-500/10 border border-pink-500/30 px-2 py-1 rounded-lg font-medium">
+                        <i data-lucide="user-check" class="w-3 h-3"></i>
+                        <span>Sesión actual</span>
+                    </span>
+                `;
+            } else {
+                const idEliminar = u.usuario || u.id;
+                celdaAccion = `
+                    <button type="button"
+                            data-usuario="${escaparAtributo(u.usuario || "")}"
+                            data-id="${escaparAtributo(idEliminar || "")}"
+                            class="btnEliminarUsuario inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 hover:border-rose-400/50 transition">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        <span>Eliminar</span>
+                    </button>
+                `;
+            }
+
+            // Las columnas coinciden exactamente con el thead de personal.html:
+            // 1: Usuario -> u.usuario
+            // 2: Rol en Sistema -> rolBadge (u.rol formateado)
+            // 3: Colaborador Vinculado -> colaboradorTexto (identidad vinculada de personal)
+            // 4: Acciones -> botón eliminar o sesión actual
+            fila.innerHTML = `
+                <td class="py-3.5 px-4 font-semibold text-slate-100 whitespace-nowrap">${celdaUsuario}</td>
+                <td class="py-3.5 px-4 whitespace-nowrap">${rolBadge}</td>
+                <td class="py-3.5 px-4">${colaboradorTexto}</td>
+                <td class="py-3.5 px-4 text-center whitespace-nowrap">${celdaAccion}</td>
+            `;
+
+            const btnEliminar = fila.querySelector(".btnEliminarUsuario");
+            if (btnEliminar) {
+                btnEliminar.addEventListener("click", () => {
+                    eliminarUsuario(u.usuario || u.id);
+                });
+            }
+
+            tableBody.appendChild(fila);
+        });
+
+        refrescarIconos();
+
+    } catch (errEx) {
+        console.error("Excepción inesperada en cargarUsuarios:", errEx);
+        mostrarNotificacion("Error inesperado al cargar usuarios: " + (errEx.message || errEx), "error");
         tableBody.innerHTML = `
             <tr>
                 <td colspan="4" class="py-8 text-center text-rose-400">
-                    Error al cargar la lista de usuarios.
+                    <div class="inline-flex flex-col items-center gap-2 max-w-md mx-auto p-4 rounded-xl bg-rose-500/10 border border-rose-500/40 text-rose-300 shadow-xl">
+                        <div class="flex items-center gap-2 text-rose-400 font-semibold text-sm">
+                            <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0"></i>
+                            <span>Error de ejecución al cargar usuarios</span>
+                        </div>
+                        <p class="text-xs text-rose-200 font-mono break-all">${escaparAtributo(errEx.message || String(errEx))}</p>
+                    </div>
                 </td>
             </tr>
         `;
-        return;
+        refrescarIconos();
     }
-
-    if (!usuarios || usuarios.length === 0) {
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="4" class="py-10 text-center text-slate-400">
-                    No hay usuarios registrados.
-                </td>
-            </tr>
-        `;
-        return;
-    }
-
-    const usuarioActualId = Number(sessionStorage.getItem("usuarioId"));
-    tableBody.innerHTML = "";
-
-    usuarios.forEach(u => {
-        const fila = document.createElement("tr");
-        fila.className = "border-b border-slate-800/60 hover:bg-pink-500/5 transition-colors";
-
-        const esMismoUsuario = Number(u.id) === usuarioActualId;
-
-        fila.innerHTML = `
-            <td class="py-3.5 px-4 font-medium text-slate-100">
-                ${escaparAtributo(u.nombre || u.usuario)}
-            </td>
-            <td class="py-3.5 px-4 text-slate-300 font-mono text-xs">
-                ${escaparAtributo(u.usuario)}
-            </td>
-            <td class="py-3.5 px-4">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-pink-500/15 text-pink-300 border border-pink-500/30">
-                    ${escaparAtributo(obtenerNombreRol(u.rol))}
-                </span>
-            </td>
-            <td class="py-3.5 px-4 text-center">
-                ${esMismoUsuario
-                    ? `<span class="text-xs text-slate-500 italic">Sesión actual</span>`
-                    : `<button type="button" data-id="${escaparAtributo(u.id)}"
-                        class="btnEliminarUsuario inline-flex items-center gap-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                        Eliminar
-                       </button>`
-                }
-            </td>
-        `;
-
-        const btnEliminar = fila.querySelector(".btnEliminarUsuario");
-        if (btnEliminar) {
-            btnEliminar.addEventListener("click", () => eliminarUsuario(u.id));
-        }
-
-        tableBody.appendChild(fila);
-    });
-
-    refrescarIconos();
 }
 
 async function guardarUsuario(evento) {
-    evento.preventDefault();
+    if (evento && evento.preventDefault) evento.preventDefault();
 
     if (sessionStorage.getItem("rol") !== "admin") {
         mostrarNotificacion("Solo el Administrador puede gestionar usuarios.", "error");
         return;
     }
 
-    const nombre = document.getElementById("nombreUsuario")?.value.trim();
-    const usuario = document.getElementById("loginUsuario")?.value.trim();
-    const password = document.getElementById("passwordUsuario")?.value.trim();
-    const rol = document.getElementById("rolUsuario")?.value;
+    const usuarioInput = (
+        document.getElementById("nuevoUsuario") ||
+        document.getElementById("loginUsuario")
+    )?.value.trim();
 
-    if (!nombre || !usuario || !password || !rol) {
-        mostrarNotificacion("Completa todos los campos del usuario.", "error");
+    const passwordInput = (
+        document.getElementById("nuevoPassword") ||
+        document.getElementById("passwordUsuario")
+    )?.value.trim();
+
+    const rolInput = (
+        document.getElementById("nuevoRol") ||
+        document.getElementById("rolUsuario")
+    )?.value;
+
+    const identidadSelect = document.getElementById("nuevoEmpleadoIdentidad");
+    const identidadInput = (identidadSelect && identidadSelect.value.trim()) ? identidadSelect.value.trim() : null;
+
+    if (!usuarioInput || !passwordInput || !rolInput) {
+        mostrarNotificacion("Completa todos los campos obligatorios del usuario.", "error");
         return;
     }
 
-    const { error } = await supabaseClient
-        .from("usuarios")
-        .insert([{ nombre, usuario, password, rol, activo: true }]);
+    const nuevoUsuarioObj = {
+        usuario: usuarioInput,
+        password: passwordInput,
+        rol: rolInput,
+        identidad: identidadInput
+    };
 
-    if (error) {
-        mostrarNotificacion("Error al registrar usuario: " + error.message, "error");
-        return;
+    console.log("Insertando nuevo usuario en Supabase:", nuevoUsuarioObj);
+
+    try {
+        const { error } = await supabaseClient
+            .from("usuarios")
+            .insert([nuevoUsuarioObj]);
+
+        console.log("Resultado inserción usuario, error:", error);
+
+        if (error) {
+            mostrarNotificacion("Error al registrar usuario: " + error.message, "error");
+            return;
+        }
+
+        mostrarNotificacion(`¡Usuario "${usuarioInput}" registrado correctamente!`, "success");
+        document.getElementById("usuarioForm")?.reset();
+        await cargarUsuarios();
+    } catch (errEx) {
+        console.error("Excepción al guardar usuario:", errEx);
+        mostrarNotificacion("Error al registrar usuario: " + (errEx.message || errEx), "error");
     }
-
-    mostrarNotificacion("¡Usuario registrado correctamente!", "success");
-    document.getElementById("usuarioForm")?.reset();
-    await cargarUsuarios();
 }
 
-async function eliminarUsuario(id) {
+async function eliminarUsuario(identificador) {
     if (sessionStorage.getItem("rol") !== "admin") {
         mostrarNotificacion("No tienes permiso para eliminar usuarios.", "error");
         return;
@@ -1208,18 +1617,32 @@ async function eliminarUsuario(id) {
     );
     if (!confirmado) return;
 
-    const { error } = await supabaseClient
-        .from("usuarios")
-        .delete()
-        .eq("id", id);
+    try {
+        console.log("Eliminando usuario:", identificador);
+        let { error } = await supabaseClient
+            .from("usuarios")
+            .delete()
+            .eq("usuario", identificador);
 
-    if (error) {
-        mostrarNotificacion("Error al eliminar usuario: " + error.message, "error");
-        return;
+        if (error && typeof identificador === "number") {
+            const res = await supabaseClient
+                .from("usuarios")
+                .delete()
+                .eq("id", identificador);
+            error = res.error;
+        }
+
+        if (error) {
+            mostrarNotificacion("Error al eliminar usuario: " + error.message, "error");
+            return;
+        }
+
+        mostrarNotificacion("Usuario eliminado correctamente.", "success");
+        await cargarUsuarios();
+    } catch (errEx) {
+        console.error("Excepción al eliminar usuario:", errEx);
+        mostrarNotificacion("Error al eliminar usuario: " + (errEx.message || errEx), "error");
     }
-
-    mostrarNotificacion("Usuario eliminado correctamente.", "success");
-    await cargarUsuarios();
 }
 
 /* ==========================================================================
@@ -1588,12 +2011,26 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Página de Personal / Usuarios
-    const usuarioForm = document.getElementById("usuarioForm");
-    if (document.getElementById("usuariosTableBody")) {
+    if (document.getElementById("personalTableBody") || document.getElementById("usuariosTableBody")) {
         if (protegerPagina(["admin"])) {
             configurarSidebarYHeader();
-            cargarUsuarios();
-            usuarioForm?.addEventListener("submit", guardarUsuario);
+            if (document.getElementById("personalTableBody")) {
+                cargarPersonal();
+            }
+            if (document.getElementById("usuariosTableBody")) {
+                cargarUsuarios();
+                cargarSelectEmpleados();
+            }
+            const personalForm = document.getElementById("personalForm");
+            if (personalForm && !personalForm.dataset.listenerAdjunto) {
+                personalForm.dataset.listenerAdjunto = "true";
+                personalForm.addEventListener("submit", guardarPersonal);
+            }
+            const usuarioForm = document.getElementById("usuarioForm");
+            if (usuarioForm && !usuarioForm.dataset.listenerAdjunto) {
+                usuarioForm.dataset.listenerAdjunto = "true";
+                usuarioForm.addEventListener("submit", guardarUsuario);
+            }
         }
     }
 // Página de Proveedores
